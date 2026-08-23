@@ -22,9 +22,10 @@ const fixtures = {
       kind: "group",
       label: "Guide",
       index: "/guide",
+      planCount: 145,
       items: [
-        { kind: "page", label: "Setup", route: "/guide/setup" },
-        { kind: "page", label: "Slow", route: "/guide/slow" },
+        { kind: "page", label: "Setup", route: "/guide/setup", planCount: 7 },
+        { kind: "page", label: "Slow", route: "/guide/slow", planCount: 120 },
         { kind: "page", label: "Source", route: "/guide/code/sample.cs" },
       ],
     },
@@ -142,7 +143,30 @@ function waitFor(test, message) {
   assert.equal(window.document.querySelector("#brand").textContent, "Atlas Docs");
   assert.equal(window.document.querySelector("#brand").getAttribute("href"), "/docs/");
   assert.equal(window.document.querySelectorAll("#space-links .space-link").length, 2);
-  assert.equal(window.document.querySelector("#page-nav .nav-link.is-active").textContent, "Setup");
+  const activeNavLink = window.document.querySelector("#page-nav .nav-link.is-active");
+  assert.equal(activeNavLink.querySelector(".nav-label-text").textContent, "Setup");
+  assert.equal(activeNavLink.querySelector(".nav-chevron-slot").getAttribute("aria-hidden"), "true");
+  assert.equal(activeNavLink.querySelector(".nav-chevron-slot").childElementCount, 0);
+  const groupChevronSlot = window.document.querySelector("#page-nav .nav-group > summary > .nav-chevron-slot");
+  assert.equal(groupChevronSlot.getAttribute("aria-hidden"), "true");
+  assert.ok(groupChevronSlot.querySelector(".nav-chevron"));
+  const groupPlanCount = window.document.querySelector("#page-nav .nav-group > summary > .nav-plan-count");
+  assert.equal(groupPlanCount.textContent, "99+");
+  assert.equal(groupPlanCount.title, "145 plans");
+  assert.equal(groupPlanCount.getAttribute("aria-hidden"), "true");
+  assert.equal(window.document.querySelector("#page-nav .nav-group-label .sr-only").textContent, "145 plans");
+  const activePlanCount = activeNavLink.querySelector(".nav-plan-count");
+  assert.equal(activePlanCount.textContent, "7");
+  assert.equal(activePlanCount.title, "7 plans");
+  assert.equal(activePlanCount.getAttribute("aria-hidden"), "true");
+  assert.equal(activeNavLink.querySelector(".sr-only").textContent, "7 plans");
+  const cappedLeafCount = Array.from(window.document.querySelectorAll("#page-nav .nav-link"))
+    .find((link) => link.querySelector(".nav-label-text")?.textContent === "Slow")
+    .querySelector(".nav-plan-count");
+  assert.equal(cappedLeafCount.textContent, "99+");
+  assert.equal(cappedLeafCount.title, "120 plans");
+  assert.equal(cappedLeafCount.getAttribute("aria-hidden"), "true");
+  assert.equal(cappedLeafCount.closest(".nav-link").querySelector(".sr-only").textContent, "120 plans");
   const tocUrl = new URL(window.document.querySelector("#tocbar .toc-link").href);
   assert.equal(tocUrl.pathname + tocUrl.hash, "/docs/guide/setup#install");
 
@@ -189,8 +213,8 @@ function waitFor(test, message) {
   assert.equal(window.location.pathname, "/docs/guide");
 
   const navLinks = Array.from(window.document.querySelectorAll("#page-nav .nav-link"));
-  navLinks.find((link) => link.textContent === "Slow").click();
-  navLinks.find((link) => link.textContent === "Setup").click();
+  navLinks.find((link) => link.querySelector(".nav-label-text")?.textContent === "Slow").click();
+  navLinks.find((link) => link.querySelector(".nav-label-text")?.textContent === "Setup").click();
   await waitFor(() => window.document.querySelector("#article h1")?.textContent === "Setup", "newer route did not win");
   await new Promise((resolve) => setTimeout(resolve, 90));
   assert.equal(window.document.querySelector("#article h1").textContent, "Setup");

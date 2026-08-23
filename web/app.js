@@ -543,6 +543,53 @@
       return String(node.index || firstRoute(node) || node.label || "group");
     }
 
+    function createNavChevronSlot(withChevron) {
+      var slot = document.createElement("span");
+      slot.className = "nav-chevron-slot";
+      slot.setAttribute("aria-hidden", "true");
+      if (withChevron) {
+        var chevron = document.createElement("span");
+        chevron.className = "nav-chevron";
+        slot.appendChild(chevron);
+      }
+      return slot;
+    }
+
+    function createNavLabel(label, className) {
+      var text = document.createElement("span");
+      text.className = className || "nav-label-text";
+      text.textContent = String(label || "Page");
+      return text;
+    }
+
+    function describePlanCount(value) {
+      var count = Number(value);
+      if (!Number.isSafeInteger(count) || count <= 0) { return null; }
+      var noun = count === 1 ? "plan" : "plans";
+      return {
+        fullLabel: count + " " + noun,
+        visibleLabel: count > 99 ? "99+" : String(count),
+      };
+    }
+
+    function appendAccessiblePlanCount(container, description) {
+      if (!description) { return; }
+      var accessible = document.createElement("span");
+      accessible.className = "sr-only";
+      accessible.textContent = description.fullLabel;
+      container.appendChild(accessible);
+    }
+
+    function createPlanCount(description) {
+      if (!description) { return null; }
+      var badge = document.createElement("span");
+      badge.className = "nav-plan-count";
+      badge.textContent = description.visibleLabel;
+      badge.title = description.fullLabel;
+      badge.setAttribute("aria-hidden", "true");
+      return badge;
+    }
+
     function firstRoute(node) {
       if (!node || typeof node !== "object") { return null; }
       if (typeof node.route === "string") { return node.route; }
@@ -590,6 +637,11 @@
       if (node.kind === "page" || pageRoute || (indexRoute && !items.length)) {
         var linkRoute = pageRoute || indexRoute;
         var link = createRouteLink(label, linkRoute, "nav-link");
+        link.replaceChildren(createNavChevronSlot(false), createNavLabel(label));
+        var pagePlanDescription = describePlanCount(node.planCount);
+        appendAccessiblePlanCount(link, pagePlanDescription);
+        var pagePlanCount = createPlanCount(pagePlanDescription);
+        if (pagePlanCount) { link.appendChild(pagePlanCount); }
         link.style.setProperty("--nav-indent", (Math.min(depth, 6) * 0.72) + "rem");
         if (normalizeRoute(linkRoute) === route) {
           link.classList.add("is-active");
@@ -608,12 +660,11 @@
 
       var summary = document.createElement("summary");
       summary.style.setProperty("--nav-indent", (Math.min(depth, 6) * 0.72) + "rem");
-      var chevron = document.createElement("span");
-      chevron.className = "nav-chevron";
-      chevron.setAttribute("aria-hidden", "true");
-      summary.appendChild(chevron);
+      summary.appendChild(createNavChevronSlot(true));
       if (indexRoute) {
         var groupLink = createRouteLink(label, indexRoute, "nav-group-label");
+        groupLink.replaceChildren(createNavLabel(label));
+        appendAccessiblePlanCount(groupLink, describePlanCount(node.planCount));
         if (normalizeRoute(indexRoute) === route) {
           groupLink.classList.add("is-active");
           groupLink.setAttribute("aria-current", "page");
@@ -622,9 +673,12 @@
       } else {
         var groupLabel = document.createElement("span");
         groupLabel.className = "nav-group-label";
-        groupLabel.textContent = label;
+        groupLabel.appendChild(createNavLabel(label));
+        appendAccessiblePlanCount(groupLabel, describePlanCount(node.planCount));
         summary.appendChild(groupLabel);
       }
+      var groupPlanCount = createPlanCount(describePlanCount(node.planCount));
+      if (groupPlanCount) { summary.appendChild(groupPlanCount); }
       details.appendChild(summary);
 
       var children = document.createElement("div");
@@ -657,13 +711,10 @@
         : route === prefix || route.indexOf(prefix + "/") === 0;
 
       var summary = document.createElement("summary");
-      var chevron = document.createElement("span");
-      chevron.className = "nav-chevron";
-      chevron.setAttribute("aria-hidden", "true");
       var label = document.createElement("span");
       label.className = "nav-group-label";
-      label.textContent = "Source";
-      summary.append(chevron, label);
+      label.appendChild(createNavLabel("Source"));
+      summary.append(createNavChevronSlot(true), label);
       details.appendChild(summary);
 
       var children = document.createElement("div");
@@ -697,13 +748,10 @@
         details.open = route.indexOf(directoryPrefix + "/") === 0;
         var summary = document.createElement("summary");
         summary.style.setProperty("--nav-indent", (Math.min(depth, 6) * 0.72) + "rem");
-        var chevron = document.createElement("span");
-        chevron.className = "nav-chevron";
-        chevron.setAttribute("aria-hidden", "true");
         var label = document.createElement("span");
         label.className = "source-directory-label";
         label.textContent = segment + "/";
-        summary.append(chevron, label);
+        summary.append(createNavChevronSlot(true), label);
         details.appendChild(summary);
         var children = document.createElement("div");
         children.className = "nav-children";
@@ -719,6 +767,7 @@
         if (!segment) { return; }
         var targetRoute = prefix + "/" + pathParts.concat(segment).join("/");
         var link = createRouteLink(segment, targetRoute, "nav-link source-file");
+        link.replaceChildren(createNavChevronSlot(false), createNavLabel(segment));
         link.style.setProperty("--nav-indent", (Math.min(depth, 6) * 0.72) + "rem");
         if (normalizeRoute(targetRoute) === route) {
           link.classList.add("is-active");
