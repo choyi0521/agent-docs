@@ -5,6 +5,8 @@ const { JSDOM } = require("jsdom");
 
 const root = path.resolve(__dirname, "..");
 const appSource = fs.readFileSync(path.join(root, "web", "app.js"), "utf8");
+const prismSource = fs.readFileSync(path.join(root, "web", "prism.js"), "utf8");
+const appCssSource = fs.readFileSync(path.join(root, "styles", "app.src.css"), "utf8");
 const shellSource = fs.readFileSync(path.join(root, "web", "index.html"), "utf8")
   .replace(/<script>[\s\S]*?<\/script>/, "")
   .replace('data-base="/"', 'data-base="/docs"');
@@ -68,9 +70,9 @@ const fixtures = {
       '<button class="tab-btn" data-tab="1">Two</button>',
       "</div>",
       '<div class="tab-pane active" data-pane="0"><p>First pane</p></div>',
-      '<div class="tab-pane" data-pane="1"><p>Second pane</p></div>',
+      '<div class="tab-pane" data-pane="1"><div class="codeblock"><pre><code class="language-javascript">const tabbed = true;</code></pre></div></div>',
       "</div>",
-      "<div class=\"codeblock\"><pre><code>const safe = true;</code></pre></div>",
+      "<div class=\"codeblock\"><pre><code class=\"language-javascript\">const safe = true;</code></pre></div>",
     ].join(""),
     toc: [[2, "install", "Install"]],
     prev: { route: "/guide", title: "Guide" },
@@ -97,6 +99,24 @@ const fixtures = {
   ],
 };
 
+const reviewRecords = [
+  {
+    id: "rc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    route: "/guide/setup",
+    anchor: "install",
+    quote: "Install the package.",
+    body: '<img id="review-xss" src=x onerror=alert(1)> Could this be clearer?',
+    status: "answered",
+    reply: "The setup explanation was expanded by the documentation skill.",
+    createdAt: "2026-08-24T01:00:00.000Z",
+    updatedAt: "2026-08-24T01:05:00.000Z",
+  },
+];
+let lastReviewPost = null;
+let lastReviewPatch = null;
+let failReviewGet = false;
+let rejectNextReviewPatch = true;
+
 const dom = new JSDOM(shellSource, {
   url: "https://docs.example.test/docs/guide/setup",
   runScripts: "outside-only",
@@ -105,8 +125,46 @@ const dom = new JSDOM(shellSource, {
 const { window } = dom;
 window.scrollTo = () => {};
 window.HTMLElement.prototype.scrollIntoView = () => {};
-window.fetch = async (input) => {
-  const pathname = new URL(String(input), window.location.href).pathname;
+window.fetch = async (input, options = {}) => {
+  const url = new URL(String(input), window.location.href);
+  const pathname = url.pathname;
+  const method = String(options.method || "GET").toUpperCase();
+  if (pathname === "/docs/__agent-docs/review/comments" && method === "GET") {
+    if (failReviewGet) { return { ok: false, status: 500, json: async () => ({ error: "test failure" }) }; }
+    const route = url.searchParams.get("route");
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        schemaVersion: 1,
+        comments: reviewRecords.filter((comment) => !route || comment.route === route).map((comment) => structuredClone(comment)),
+      }),
+    };
+  }
+  if (pathname === "/docs/__agent-docs/review/comments" && method === "POST") {
+    lastReviewPost = JSON.parse(options.body);
+    const comment = {
+      id: "rc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      ...lastReviewPost,
+      status: "open",
+      createdAt: "2026-08-24T02:00:00.000Z",
+      updatedAt: "2026-08-24T02:00:00.000Z",
+    };
+    reviewRecords.unshift(comment);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    return { ok: true, status: 201, json: async () => ({ schemaVersion: 1, comment: structuredClone(comment) }) };
+  }
+  const reviewPatch = pathname.match(/^\/docs\/__agent-docs\/review\/comments\/(rc_[a-f0-9]{32})$/);
+  if (reviewPatch && method === "PATCH") {
+    lastReviewPatch = JSON.parse(options.body);
+    const comment = reviewRecords.find((candidate) => candidate.id === reviewPatch[1]);
+    if (rejectNextReviewPatch || (lastReviewPatch.status === "resolved" && !comment.reply)) {
+      rejectNextReviewPatch = false;
+      return { ok: false, status: 409, json: async () => ({ error: "invalid review status transition" }) };
+    }
+    Object.assign(comment, lastReviewPatch, { updatedAt: "2026-08-24T03:00:00.000Z" });
+    return { ok: true, status: 200, json: async () => ({ schemaVersion: 1, comment: structuredClone(comment) }) };
+  }
   if (pathname === "/docs/content/guide/slow.json") {
     await new Promise((resolve) => setTimeout(resolve, 60));
   }
@@ -137,8 +195,119 @@ function waitFor(test, message) {
 }
 
 (async () => {
+  window.Prism = { manual: true };
+  window.eval(prismSource);
   window.eval(appSource);
   await waitFor(() => window.document.querySelector("#article h1")?.textContent === "Setup", "initial route did not render");
+  assert.equal(window.document.querySelector("#article .token.keyword").textContent, "const");
+  await waitFor(() => !window.document.querySelector("#review-button").hidden, "review endpoint did not enable comments");
+
+  assert.equal(window.document.querySelector("#review-count").textContent, "1");
+  assert.equal(window.document.querySelector("#review-panel").hidden, true);
+  assert.equal(window.document.querySelector("#review-xss"), null);
+  assert.match(window.document.querySelector(".review-comment-body").textContent, /<img id="review-xss"/);
+  assert.equal(window.document.querySelector(".review-status").textContent, "Answered");
+  assert.equal(window.document.querySelector(".review-reply strong").textContent, "Skill reply");
+  assert.match(window.document.querySelector(".review-reply p").textContent, /documentation skill/);
+
+  const reviewSelectionNode = window.document.querySelector('[data-pane="0"] p').firstChild;
+  const reviewRange = window.document.createRange();
+  reviewRange.selectNodeContents(reviewSelectionNode);
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(reviewRange);
+  window.document.querySelector("#review-button").click();
+  await waitFor(() => !window.document.querySelector("#review-panel").hidden, "review panel did not open");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "review form did not receive focus");
+  assert.equal(window.document.querySelector("#review-button").getAttribute("aria-expanded"), "true");
+  assert.equal(window.document.querySelector("#review-selection-text").textContent, "First pane");
+  assert.equal(window.document.querySelector("#review-selection-anchor").textContent, "#install");
+  assert.match(window.document.querySelector(".review-skill-hint").textContent, /\$docs-authoring/);
+  assert.equal(window.document.querySelector(".topbar").hasAttribute("inert"), true);
+  assert.equal(window.document.querySelector(".shell").hasAttribute("inert"), true);
+  window.document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }));
+  assert.equal(window.document.querySelector("#search-dialog").hasAttribute("open"), false);
+
+  window.document.querySelector("#review-body").value = "Please add one more example.";
+  window.document.querySelector("#review-form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
+  window.document.querySelector("#review-refresh").click();
+  await waitFor(() => window.document.querySelectorAll(".review-comment").length === 2, "review comment was not saved");
+  await waitFor(() => window.document.querySelector("#review-form-status").textContent === "Comment saved.", "review save did not finish");
+  assert.equal(window.document.querySelectorAll(".review-comment").length, 2);
+  assert.deepEqual(
+    Array.from(window.document.querySelectorAll(".review-comment"), (comment) => comment.dataset.reviewId),
+    ["rc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "rc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+  );
+  assert.deepEqual(lastReviewPost, {
+    route: "/guide/setup",
+    body: "Please add one more example.",
+    anchor: "install",
+    quote: "First pane",
+  });
+  assert.equal(window.document.querySelector("#review-form-status").textContent, "Comment saved.");
+
+  const openComment = window.document.querySelector('[data-review-id="rc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]');
+  assert.equal(openComment.querySelector(".review-status").textContent, "Open");
+  assert.equal(openComment.querySelector(".review-status-button"), null);
+  assert.equal(openComment.querySelector(".review-awaiting").textContent, "Awaiting skill reply");
+  assert.equal(lastReviewPatch, null);
+
+  const answeredComment = window.document.querySelector('[data-review-id="rc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]');
+  answeredComment.querySelector(".review-status-button").click();
+  await waitFor(
+    () => window.document.querySelector("#review-form-status").textContent === "Comment could not be updated. Try again.",
+    "rejected review transition was not reported",
+  );
+  assert.equal(answeredComment.querySelector(".review-status").textContent, "Answered");
+  assert.equal(answeredComment.querySelector(".review-status-button").disabled, false);
+  answeredComment.querySelector(".review-status-button").click();
+  await waitFor(
+    () => window.document.querySelector('[data-review-id="rc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] .review-status')?.textContent === "Resolved",
+    "review status was not updated",
+  );
+  const resolvedAction = window.document.querySelector('[data-review-id="rc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] .review-status-button');
+  assert.equal(resolvedAction.textContent, "Reopen");
+  assert.equal(resolvedAction.dataset.reviewStatus, "open");
+  assert.deepEqual(lastReviewPatch, { status: "resolved" });
+  assert.equal(window.document.querySelector("#review-count").textContent, "1");
+  assert.equal(window.document.querySelector("#review-button").getAttribute("aria-label"), "Page comments, 1 unresolved");
+  window.document.querySelector("#review-close").click();
+  assert.equal(window.document.querySelector("#review-panel").hidden, true);
+  assert.equal(window.document.querySelector("#review-button").getAttribute("aria-expanded"), "false");
+  assert.equal(window.document.activeElement, window.document.querySelector("#review-button"));
+  assert.equal(window.document.querySelector(".topbar").hasAttribute("inert"), false);
+  assert.equal(window.document.querySelector(".shell").hasAttribute("inert"), false);
+
+  window.getSelection().removeAllRanges();
+  window.document.querySelector("#review-button").click();
+  window.document.querySelector('[data-review-id="rc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] .review-anchor').click();
+  await waitFor(() => window.document.activeElement?.id === "install", "review anchor did not restore focus to its heading");
+  assert.equal(window.document.querySelector("#review-panel").hidden, true);
+
+  const crossBoundaryRange = window.document.createRange();
+  crossBoundaryRange.setStart(reviewSelectionNode, 0);
+  crossBoundaryRange.setEnd(
+    window.document.querySelector("#review-title").firstChild,
+    window.document.querySelector("#review-title").firstChild.length,
+  );
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(crossBoundaryRange);
+  assert.ok(window.getSelection().toString().length > "First pane".length);
+  window.document.querySelector("#review-button").click();
+  assert.equal(window.document.querySelector("#review-selection").hidden, true);
+  window.document.querySelector("#review-close").click();
+
+  failReviewGet = true;
+  window.document.querySelector("#review-button").click();
+  window.document.querySelector("#review-refresh").click();
+  await waitFor(() => window.document.querySelector("#review-button").hidden, "failed review refresh did not hide the feature");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#article"), "failed review refresh stranded focus");
+  assert.equal(window.document.querySelector("#review-panel").hidden, true);
+  failReviewGet = false;
+
+  assert.match(appCssSource, /\.review-panel\s*\{[^}]*position:\s*fixed;[^}]*right:\s*0;[^}]*width:\s*min\(29rem,\s*100vw\);/s);
+  assert.match(appCssSource, /\.review-scrim\s*\{[^}]*inset:\s*0;/s);
+  assert.match(appCssSource, /@media\s*\(max-width:\s*39\.99rem\)[\s\S]*?\.review-panel\s*\{\s*width:\s*100vw;/);
+  assert.match(appCssSource, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation-duration:\s*0\.01ms\s*!important;/);
 
   assert.equal(window.document.querySelector("#brand").textContent, "Atlas Docs");
   assert.equal(window.document.querySelector("#brand").getAttribute("href"), "/docs/");
@@ -177,6 +346,12 @@ function waitFor(test, message) {
   assert.equal(window.document.querySelector("#unsafe-style"), null);
   assert.equal(window.document.querySelector("#safe-figure style"), null);
   assert.equal(window.document.querySelector("#safe-figure").hasAttribute("style"), false);
+
+  const tabPanes = window.document.querySelectorAll(".tab-pane");
+  assert.equal(tabPanes[0].classList.contains("code-only"), false);
+  assert.equal(tabPanes[1].classList.contains("code-only"), true);
+  assert.match(appCssSource, /\.tab-pane\.code-only\s*\{\s*padding:\s*0;/);
+  assert.match(appCssSource, /\.tab-pane\.code-only\s*>\s*\.codeblock\s*\{[^}]*margin:\s*0;[^}]*border:\s*0;/s);
 
   const secondTab = window.document.querySelectorAll(".tab-btn")[1];
   secondTab.click();
@@ -263,6 +438,8 @@ function waitFor(test, message) {
   );
   assert.equal(alternateWindow.location.pathname, "/docs/alpha");
   assert.equal(new URL(alternateWindow.document.querySelector("#brand").href).pathname, "/docs/alpha");
+  assert.equal(alternateWindow.document.querySelector("#review-button").hidden, true);
+  assert.equal(alternateWindow.document.querySelector("#review-panel").hidden, true);
   alternateDom.window.close();
 
   console.log("docs SPA smoke test passed");

@@ -12,6 +12,9 @@
 **/dist/
 **/out/
 
+# Local documentation review data
+/.agent-docs/
+
 # Node
 **/node_modules/
 npm-debug.log*

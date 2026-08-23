@@ -33,4 +33,28 @@ public sealed class PathSafetyTests
 
         Assert.Contains("escapes its trusted root", error.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void EnsureNoReparse_rejects_a_dangling_symbolic_link()
+    {
+        using TempRepository repo = new();
+        string linked = Path.Combine(repo.Root, "dangling-link");
+        string missing = Path.Combine(repo.Workspace, "missing-target");
+        try
+        {
+            File.CreateSymbolicLink(linked, missing);
+        }
+        catch (Exception exception) when (exception is IOException
+                                          or UnauthorizedAccessException
+                                          or PlatformNotSupportedException)
+        {
+            Assert.Skip($"file links unavailable: {exception.GetType().Name}");
+        }
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(
+            () => PathSafety.EnsureNoReparse(repo.Root, linked, "candidate"));
+
+        Assert.Contains("symbolic link or reparse point", error.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
 }

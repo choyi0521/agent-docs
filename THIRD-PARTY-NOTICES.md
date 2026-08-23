@@ -9,6 +9,7 @@ resolved graph, and NuGet restore determines the transitive .NET graph.
 | Component | Version | Scope | License and notice | Upstream |
 |---|---:|---|---|---|
 | Markdig | 0.37.0 | Runtime Markdown rendering | [BSD-2-Clause](third_party_licenses/Markdig-BSD-2-Clause.txt) | <https://github.com/xoofx/markdig> |
+| PrismJS | 1.30.0 | Build-time syntax-highlighter source; generated browser bundle is distributed | [MIT](third_party_licenses/PrismJS-MIT.txt) | <https://github.com/PrismJS/prism> |
 | Tailwind CSS | 3.4.17 | Build-time stylesheet generation; generated Preflight CSS is distributed | [Tailwind MIT](third_party_licenses/Tailwind-CSS-MIT.txt) and [Preflight MIT](third_party_licenses/Tailwind-Preflight-MIT.txt) | <https://tailwindcss.com/> |
 | jsdom | 26.1.0 | Test-only browser emulation; not part of generated sites | MIT | <https://github.com/jsdom/jsdom> |
 | xunit.v3.mtp-v2 | 3.2.2 | Test-only package; not part of generated sites | Apache-2.0 | <https://github.com/xunit/xunit> |

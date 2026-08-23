@@ -135,6 +135,7 @@ internal static class NoticeAssets
     private static readonly string[] LicenseFiles =
     [
         "Markdig-BSD-2-Clause.txt",
+        "PrismJS-MIT.txt",
         "Tailwind-CSS-MIT.txt",
         "Tailwind-Preflight-MIT.txt",
     ];
@@ -174,7 +175,7 @@ internal static class NoticeAssets
 
 internal static class WebAssets
 {
-    private static readonly string[] RequiredFiles = ["index.html", "app.js", "app.css"];
+    private static readonly string[] RequiredFiles = ["index.html", "app.js", "app.css", "prism.js"];
     private const long MaximumAssetBytes = 2 * 1024 * 1024;
 
     internal static IReadOnlyList<string> Validate(string webRoot)

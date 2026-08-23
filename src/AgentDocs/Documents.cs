@@ -6,9 +6,10 @@ internal static class DocumentFiles
     private const long MaximumDocumentBytes = 1024 * 1024;
     private const long MaximumTotalBytes = 25 * 1024 * 1024;
     private static readonly HashSet<string> ExcludedDirectories = new(
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+        StringComparer.OrdinalIgnoreCase)
     {
-        ".git", "_agents", "_assets", "_registry", "build", "bin", "obj", "node_modules"
+        ".git", ".agent-docs", "_agents", "_assets", "_registry", "build", "bin", "obj",
+        "node_modules"
     };
 
     internal static List<string> Walk(ResolvedSpace space)
@@ -120,9 +121,9 @@ public sealed class RouteResolver
 internal sealed class SourcePolicy
 {
     private static readonly HashSet<string> GeneratedDirectories = new(
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
+        StringComparer.OrdinalIgnoreCase)
     {
-        ".git", "build", "bin", "obj", "node_modules"
+        ".git", ".agent-docs", "build", "bin", "obj", "node_modules"
     };
     private readonly ResolvedSpace _space;
     private readonly IReadOnlyList<string> _excludedAbsolute;

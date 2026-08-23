@@ -88,6 +88,7 @@ internal static partial class AgentWorkflowProjection
 
             string source = PathSafety.ResolveRepoRelative(
                 configuration.RepoRoot, page.Source, "agent workflow source");
+            RejectLocalStateSource(configuration.RepoRoot, source);
             if (!File.Exists(source))
                 throw new FileNotFoundException("agent workflow source not found", source);
             FileInfo sourceInfo = new(source);
@@ -126,10 +127,19 @@ internal static partial class AgentWorkflowProjection
                 throw new InvalidDataException("agent workflow pages cannot contain null entries");
             if (!PathSafety.IsPortableRelative(page.Source))
                 throw new InvalidDataException($"agent workflow source must be portable: {page.Source}");
-            inputs.Add(PathSafety.ResolveRepoRelative(
-                configuration.RepoRoot, page.Source, "agent workflow source"));
+            string source = PathSafety.ResolveRepoRelative(
+                configuration.RepoRoot, page.Source, "agent workflow source");
+            RejectLocalStateSource(configuration.RepoRoot, source);
+            inputs.Add(source);
         }
         return inputs;
+    }
+
+    private static void RejectLocalStateSource(string repositoryRoot, string source)
+    {
+        if (PathSafety.ContainsAgentDocsDirectory(source, repositoryRoot))
+            throw new InvalidDataException(
+                "agent workflow sources cannot publish the reserved .agent-docs directory");
     }
 
     private static void RejectSecrets(string text, string source)

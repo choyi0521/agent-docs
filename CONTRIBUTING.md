@@ -52,7 +52,7 @@ dotnet run --project src/AgentDocs.Cli --configuration Release --no-build -- `
 npm ci --prefix styles
 npm run build --prefix styles
 npm test --prefix styles
-git diff --exit-code -- web/app.css
+git diff --exit-code -- web/app.css web/prism.js
 ```
 
 The public-boundary check must run before build commands create ignored output

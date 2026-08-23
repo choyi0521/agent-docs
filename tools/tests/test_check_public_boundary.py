@@ -148,6 +148,8 @@ class PublicBoundaryTests(unittest.TestCase):
             prefix
             + "example/project\n"
             + prefix
+            + "PrismJS/prism\n"
+            + prefix
             + "sponsors/example\n"
             + prefix
             + "unknown-owner/private-repo\n"

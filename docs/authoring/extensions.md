@@ -28,6 +28,62 @@ with `==` followed by its label.
 ```
 :::
 
+## Local review comments {#local-review-comments}
+
+The loopback-only `serve` command enables a local review panel alongside the
+static reader. Select a passage before opening **Comments**, then choose **Use
+selected text** to save the quote and its nearest heading anchor with the
+comment. Page-level comments work without a selection.
+
+Review records use the versioned data contract in
+`schemas/review-comments.schema.json` and are stored by default in the ignored
+file `.agent-docs/review-comments.json`. `--review-data PATH` can choose another
+file only beneath the reserved repository-root `.agent-docs/` directory. The
+entire directory is Git-ignored and hard-excluded from rendered documents,
+published source and snippets, browsable root files, and agent-workflow inputs.
+Paths outside it, symbolic-link or reparse paths, and paths under any
+sentinel-owned generated output tree are rejected; preview preflight also
+rejects a configuration that tries to publish the reserved subtree.
+
+Ask an authoring agent to use `$docs-authoring` to answer the saved comments.
+An answer is stored in `reply` with status `answered`; only a comment with a
+saved reply can be `answered` or `resolved`. A resolved thread must be reopened
+to `open` before its reply can be replaced. Refresh the panel after an agent
+writes the file.
+
+The preview and the docs-authoring helper share a persistent sibling
+operating-system lock, so their mutations are serialized. Each writer retries
+every 50 milliseconds for up to 5 seconds. If the bounded wait expires, refresh
+the review state and retry. The lock file remains beside the data file and has
+the exact UTF-8 header `agent-docs-review-lock-v1` followed by one LF byte; do
+not delete it as though it were a stale sentinel.
+
+A useful agent request is: “Use `$docs-authoring` to address the open saved
+documentation review comments. Inspect each target and evidence, edit and
+verify the docs, save a reply, and resolve only handled comments.” The skill's
+repository-local helper exposes the same workflow explicitly:
+
+```powershell
+python -B _agents/skills/docs-authoring/scripts/review_comments.py --repo-root . validate
+python -B _agents/skills/docs-authoring/scripts/review_comments.py --repo-root . list --status open
+python -B _agents/skills/docs-authoring/scripts/review_comments.py --repo-root . show <comment-id>
+python -B _agents/skills/docs-authoring/scripts/review_comments.py --repo-root . reply <comment-id> --reply "What changed and how it was verified."
+python -B _agents/skills/docs-authoring/scripts/review_comments.py --repo-root . resolve <comment-id>
+```
+
+Add `--keep-open` to the `reply` command when the requested work is blocked.
+Use `reopen <comment-id>` to return a thread to `open`. For an overridden store,
+put `--review-data .agent-docs/<file-name>` before the subcommand. Reopen a
+resolved comment before using `reply` to replace its saved response.
+
+This feature is deliberately absent from static publication. `render` never
+copies the review data or a writable API into `build/`; only the loopback
+preview process exposes it. That endpoint is an unauthenticated local API.
+JSON-only requests plus `Origin` and fetch-metadata checks reduce ordinary
+browser cross-site writes, but cannot protect against another local operating-
+system process. Use the preview only on a trusted workstation and stop it when
+review work is complete.
+
 ## Snippets {#snippets}
 
 A snippet fence lifts one named region from an allowed source file. The sample

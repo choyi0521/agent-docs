@@ -14,7 +14,7 @@ if (!fs.existsSync(indexPath)) {
 
 const index = readJson(indexPath);
 assert.ok(index && Array.isArray(index.spaces) && index.spaces.length, "generated index must contain spaces");
-for (const asset of ["index.html", "app.js", "app.css", "search.json"]) {
+for (const asset of ["index.html", "app.js", "app.css", "prism.js", "search.json"]) {
   assert.ok(fs.existsSync(path.join(output, asset)), `generated asset is missing: ${asset}`);
 }
 
@@ -25,8 +25,10 @@ const mountedShell = shell
   .replace(/<script>[\s\S]*?<\/script>/, "")
   .replace(/data-base="[^"]*"/, `data-base="${mount}"`);
 const appSource = fs.readFileSync(path.join(output, "app.js"), "utf8");
+const prismSource = fs.readFileSync(path.join(output, "prism.js"), "utf8");
 const generatedCss = fs.readFileSync(path.join(output, "app.css"), "utf8");
 assert.equal(appSource, fs.readFileSync(path.join(root, "web", "app.js"), "utf8"), "generated app.js is stale");
+assert.equal(prismSource, fs.readFileSync(path.join(root, "web", "prism.js"), "utf8"), "generated prism.js is stale");
 assert.equal(generatedCss, fs.readFileSync(path.join(root, "web", "app.css"), "utf8"), "generated app.css is stale");
 assert.match(generatedCss, /\.source-lines/, "generated stylesheet does not cover source-line output");
 
@@ -118,6 +120,8 @@ function routeLink(route, selector = "a[data-route]") {
 }
 
 (async () => {
+  window.Prism = { manual: true };
+  window.eval(prismSource);
   window.eval(appSource);
 
   const rootSpace = index.spaces.find((space) => space.route === "/");
@@ -167,6 +171,9 @@ function routeLink(route, selector = "a[data-route]") {
   await waitFor(() => Boolean(window.document.querySelector(".code-page")), "generated source page did not render");
   assert.equal(window.location.pathname, mountedPath(codeEntry.route));
   assert.equal(window.document.querySelectorAll(".source-lines tr").length, codeContent.lines.length);
+  assert.equal(codeContent.language, "csharp");
+  assert.ok(window.document.querySelector(".source-lines code.language-csharp"));
+  assert.ok(window.document.querySelector(".source-lines .token.keyword"));
   assert.equal(window.document.querySelector(".code-page-body .copy"), null);
   window.document.querySelector(".code-page-copy").click();
   await waitFor(() => copied === codeContent.lines.join("\n"), "generated source copy did not match fragment lines");

@@ -154,6 +154,9 @@ public sealed class BuilderIntegrationTests
         JsonElement code = ReadJson(
             repo.Output, "content", "code", "examples", "Sample.cs.json");
         Assert.Equal("examples/Sample.cs", code.GetProperty("path").GetString());
+        Assert.Equal("csharp", code.GetProperty("language").GetString());
+        Assert.Contains("class=\"language-csharp\"", code.GetProperty("html").GetString()!,
+            StringComparison.Ordinal);
         Assert.Contains("Sample&lt;T&gt;", code.GetProperty("html").GetString()!,
             StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(

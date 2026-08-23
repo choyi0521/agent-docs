@@ -23,9 +23,12 @@ internal sealed class TempRepository : IDisposable
             "<!doctype html><html data-base=\"/\"><body>preview shell</body></html>\n");
         Write("web/app.js", "globalThis.agentDocsPreview = true;\n");
         Write("web/app.css", "body { margin: 0; }\n");
+        Write("web/prism.js", "globalThis.Prism = { manual: true };\n");
         Write("THIRD-PARTY-NOTICES.md", "# Third-party notices\n\nFixture notice.\n");
         Write("third_party_licenses/Markdig-BSD-2-Clause.txt",
             "Fixture BSD-2-Clause license text.\n");
+        Write("third_party_licenses/PrismJS-MIT.txt",
+            "Fixture PrismJS MIT license text.\n");
         Write("third_party_licenses/Tailwind-CSS-MIT.txt",
             "Fixture Tailwind CSS MIT license text.\n");
         Write("third_party_licenses/Tailwind-Preflight-MIT.txt",

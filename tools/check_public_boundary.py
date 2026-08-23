@@ -191,6 +191,7 @@ ALLOWED_GITHUB_REPOSITORIES = frozenset(
         ("jgraph", "drawio-desktop"),
         ("jgraph", "drawio-mcp"),
         ("jsdom", "jsdom"),
+        ("PrismJS", "prism"),
         ("xunit", "xunit"),
         ("xoofx", "markdig"),
         ("ZSeven-W", "openpencil"),

@@ -26,12 +26,14 @@ public sealed class BuilderSafetyTests
         Assert.True(File.Exists(Path.Combine(repo.Output, "index.html")));
         Assert.True(File.Exists(Path.Combine(repo.Output, "app.js")));
         Assert.True(File.Exists(Path.Combine(repo.Output, "app.css")));
+        Assert.True(File.Exists(Path.Combine(repo.Output, "prism.js")));
         Assert.Equal(
             File.ReadAllText(Path.Combine(repo.Root, "THIRD-PARTY-NOTICES.md")),
             File.ReadAllText(Path.Combine(repo.Output, "THIRD-PARTY-NOTICES.md")));
         foreach (string license in new[]
                  {
                      "Markdig-BSD-2-Clause.txt",
+                     "PrismJS-MIT.txt",
                      "Tailwind-CSS-MIT.txt",
                      "Tailwind-Preflight-MIT.txt",
                  })

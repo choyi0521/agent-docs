@@ -134,6 +134,9 @@ public static partial class ConfigurationLoader
                 $"space '{id}' docsDir");
             string source = PathSafety.ResolveRepoRelative(repo, space.SourceRoot,
                 $"space '{id}' sourceRoot", allowDot: true);
+            if (PathSafety.ContainsAgentDocsDirectory(docs, repo))
+                throw new InvalidDataException(
+                    $"space '{id}' docsDir cannot publish the reserved .agent-docs directory");
             if (!Directory.Exists(docs))
                 throw new DirectoryNotFoundException($"docsDir does not exist: {space.DocsDir}");
             if (!Directory.Exists(source))
@@ -145,11 +148,27 @@ public static partial class ConfigurationLoader
             List<string> trees = ValidateRelativeList(space.SourceTrees, "sourceTrees", allowDot: false);
             if (trees.Any(SourcePolicy.ContainsGeneratedDirectory))
                 throw new InvalidDataException(
-                    $"space '{id}' sourceTrees cannot publish build, bin, obj, node_modules, or .git");
+                    $"space '{id}' sourceTrees cannot publish .agent-docs or generated directories");
             HashSet<string> extensions = ValidateExtensions(space.SourceExtensions);
             List<string> excluded = ValidateRelativeList(
                 space.ExcludedSourcePaths, "excludedSourcePaths", allowDot: false);
             List<string> rootFiles = ValidateRootFiles(space.BrowsableRootFiles);
+            foreach (string tree in trees)
+            {
+                string published = PathSafety.ResolveRepoRelative(
+                    source, tree, $"space '{id}' source tree");
+                if (PathSafety.ContainsAgentDocsDirectory(published, repo))
+                    throw new InvalidDataException(
+                        $"space '{id}' sourceTrees cannot publish the reserved .agent-docs directory");
+            }
+            foreach (string rootFile in rootFiles)
+            {
+                string published = PathSafety.ResolveRepoRelative(
+                    source, rootFile, $"space '{id}' browsable root file");
+                if (PathSafety.ContainsAgentDocsDirectory(published, repo))
+                    throw new InvalidDataException(
+                        $"space '{id}' browsableRootFiles cannot publish the reserved .agent-docs directory");
+            }
             if ((space.EnableSnippets || space.PublishCode) && (trees.Count == 0 || extensions.Count == 0))
                 throw new InvalidDataException(
                     $"space '{id}' source publication requires sourceTrees and sourceExtensions");
@@ -178,6 +197,9 @@ public static partial class ConfigurationLoader
                 throw new InvalidDataException("agentWorkflows.manifest is required when enabled");
             string manifest = PathSafety.ResolveRepoRelative(repo, workflow.Manifest,
                 "agentWorkflows.manifest");
+            if (PathSafety.ContainsAgentDocsDirectory(manifest, repo))
+                throw new InvalidDataException(
+                    "agentWorkflows.manifest cannot publish the reserved .agent-docs directory");
             if (!File.Exists(manifest))
                 throw new FileNotFoundException("agent workflow manifest not found", manifest);
             workflows = new(workflow.SpaceId, manifest, workflow.RoutePrefix);

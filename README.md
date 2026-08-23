@@ -13,8 +13,10 @@ usually leave unchecked.
 - Reproducible technical figure bundles and structural figure audits.
 - Multiple documentation spaces, repository source links, and optional source
   browsing.
-- A responsive static reader with search, line-addressable code browsing, and
-  base-path mounting.
+- A responsive static reader with search, syntax-highlighted line-addressable
+  code browsing, and base-path mounting.
+- Repository-local review comments for the loopback authoring preview, kept
+  separate from generated static output.
 - Vendor-neutral agent instructions and documentation-authoring skills that can
   be generated for supported coding agents.
 
@@ -26,7 +28,7 @@ generated build output.
 
 - .NET SDK 10
 - Python 3.11 or newer
-- Node.js 20 or newer for rebuilding the stylesheet
+- Node.js 20 or newer for rebuilding the browser assets
 
 The renderer itself does not require Node.js after the web assets have been
 built.
@@ -53,7 +55,22 @@ dotnet run --project src/AgentDocs.Cli --configuration Release -- `
 The preview server is intended for local, trusted authoring content. Generated
 output is written under `build/` and is not committed. The standalone output
 includes the reader assets, third-party notices, and exact license texts needed
-to distribute its generated stylesheet.
+to distribute its generated browser assets.
+
+Comments created in the preview are stored by default in the ignored file
+`.agent-docs/review-comments.json`. The write API exists only in the
+loopback-only `serve` process; `render` never copies the comments or an API into
+the static output. Use `--review-data PATH` to choose another file only under
+the repository-root `.agent-docs/` directory. That entire reserved directory is
+ignored by Git and hard-excluded from documentation, source-browser, snippet,
+and agent-workflow publication. See
+[`schemas/review-comments.schema.json`](schemas/review-comments.schema.json)
+for the versioned local data contract.
+
+The loopback review endpoint is an unauthenticated local API. Its JSON,
+`Origin`, and fetch-metadata checks reduce ordinary browser cross-site writes,
+but do not protect it from other processes on the same operating system. Run
+the preview only on a trusted workstation and stop it when review work is done.
 
 ## Configuration
 
@@ -102,7 +119,7 @@ The CLI has three commands:
 | Command | Purpose | Command-specific options |
 |---|---|---|
 | `render` | Build the static site; this is the default command | `--check` fails when the report contains validation errors |
-| `serve` | Build and serve a loopback-only, read-only preview | `--port`, `--base`, `--no-render`, `--check` |
+| `serve` | Build and serve a loopback-only preview with local review comments | `--port`, `--base`, `--review-data`, `--no-render`, `--check` |
 | `probe` | Check a running preview endpoint | `--port`, `--base` |
 
 `--repo`, `--config`, and `--out` select the repository, configuration, and
@@ -110,6 +127,21 @@ output paths for rendering. Relative configuration and output paths are
 resolved from the repository root. The output directory is prepared for a
 fresh build, so it must be a disposable directory that does not overlap any
 input.
+
+`--review-data` is valid only with `serve`. Its relative path is resolved from
+the repository root; absolute overrides must still resolve beneath the reserved
+repository-root `.agent-docs/` directory. Filesystem roots, outside paths,
+symbolic-link or reparse paths, and paths under any sentinel-owned generated
+output tree are rejected. The complete `.agent-docs/` subtree is Git-ignored
+local state and is hard-excluded from rendered documents, published source and
+snippets, browsable root files, and agent-workflow inputs. Serve preflight also
+rejects any configuration that attempts to publish that reserved subtree.
+
+Preview writes and the `$docs-authoring` review helper share a persistent
+sibling operating-system lock. Writers retry every 50 milliseconds for up to
+5 seconds, so concurrent mutations are serialized rather than silently
+overwriting each other. An `answered` or `resolved` comment must retain a saved
+reply; reopen a resolved comment before replacing its reply.
 
 The renderer can also be called from .NET through its public entry point:
 
@@ -162,12 +194,13 @@ docs-audit.json          documentation-authoring audit configuration
 _agents/                 canonical agent instructions and skills
 docs/                    neutral documentation authored with the toolkit
 examples/                neutral snippet and source-browser fixtures
+schemas/                 versioned repository-local data contracts
 src/AgentDocs/           renderer library
 src/AgentDocs.Cli/       command-line renderer and preview server
 tests/AgentDocs.Tests/   isolated renderer and security tests
 styles/                  Tailwind source and lock file
 third_party_licenses/    required upstream license texts
-web/                     dependency-free reader shell and generated CSS
+web/                     self-contained reader shell and generated browser assets
 tools/                   agent-surface and public-boundary checks
 ```
 

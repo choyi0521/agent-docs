@@ -18,6 +18,22 @@
       menuButton: document.getElementById("menu-button"),
       nav: document.getElementById("page-nav"),
       progress: document.getElementById("route-progress"),
+      reviewBody: document.getElementById("review-body"),
+      reviewButton: document.getElementById("review-button"),
+      reviewClearSelection: document.getElementById("review-clear-selection"),
+      reviewClose: document.getElementById("review-close"),
+      reviewCount: document.getElementById("review-count"),
+      reviewForm: document.getElementById("review-form"),
+      reviewFormStatus: document.getElementById("review-form-status"),
+      reviewList: document.getElementById("review-list"),
+      reviewPanel: document.getElementById("review-panel"),
+      reviewRefresh: document.getElementById("review-refresh"),
+      reviewScrim: document.getElementById("review-scrim"),
+      reviewSelection: document.getElementById("review-selection"),
+      reviewSelectionAnchor: document.getElementById("review-selection-anchor"),
+      reviewSelectionText: document.getElementById("review-selection-text"),
+      reviewSubmit: document.getElementById("review-submit"),
+      reviewUseSelection: document.getElementById("review-use-selection"),
       scrim: document.getElementById("nav-scrim"),
       searchButton: document.getElementById("search-button"),
       searchClose: document.getElementById("search-close"),
@@ -47,6 +63,12 @@
       tocIds: [],
       scrollFrame: 0,
       progressTimer: 0,
+      reviewAvailable: false,
+      reviewComments: [],
+      reviewController: null,
+      reviewContext: null,
+      reviewRequestNumber: 0,
+      reviewReturnFocus: null,
     };
     var codeTextByPage = new WeakMap();
 
@@ -273,6 +295,22 @@
     }
 
     function focusAfterRouteChange(options) {
+      if (options.focusHash && options.hash) {
+        window.requestAnimationFrame(function () {
+          var target = document.getElementById(options.hash);
+          if (!target || typeof target.focus !== "function") {
+            elements.article.focus({ preventScroll: true });
+            return;
+          }
+          var temporaryTabIndex = !target.hasAttribute("tabindex");
+          if (temporaryTabIndex) { target.setAttribute("tabindex", "-1"); }
+          target.focus({ preventScroll: true });
+          if (temporaryTabIndex) {
+            target.addEventListener("blur", function () { target.removeAttribute("tabindex"); }, { once: true });
+          }
+        });
+        return;
+      }
       if (!options.focus || options.hash) { return; }
       window.requestAnimationFrame(function () {
         elements.article.focus({ preventScroll: true });
@@ -295,6 +333,9 @@
         return Promise.resolve();
       }
 
+      cancelReviewRefresh();
+      hideReviewFeature(false);
+      resetReviewComposer();
       saveScrollPosition();
       if (state.pageController) { state.pageController.abort(); }
       state.pageController = new AbortController();
@@ -324,6 +365,8 @@
         } else {
           renderDocument(fragment);
         }
+
+        refreshReviewComments(targetRoute);
 
         writeHistory(targetRoute, options);
         scrollAfterRender(options);
@@ -829,6 +872,9 @@
 
     function hydrateArticle() {
       hydrateTabs(elements.article);
+      if (window.Prism && typeof window.Prism.highlightAllUnder === "function") {
+        window.Prism.highlightAllUnder(elements.article);
+      }
       elements.article.querySelectorAll("pre").forEach(function (pre) {
         if (pre.closest(".code-page-body")) { return; }
         var box = pre.closest(".codeblock") || pre.parentElement;
@@ -846,6 +892,10 @@
         var buttons = Array.from(tabs.querySelectorAll(".tab-btn"));
         var panes = Array.from(tabs.querySelectorAll(".tab-pane"));
         if (!buttons.length || !panes.length) { return; }
+        panes.forEach(function (pane) {
+          var onlyChild = pane.childElementCount === 1 ? pane.firstElementChild : null;
+          pane.classList.toggle("code-only", Boolean(onlyChild && onlyChild.classList.contains("codeblock")));
+        });
         var selected = buttons.find(function (button) { return button.classList.contains("active"); }) || buttons[0];
         buttons.forEach(function (button, index) {
           var key = button.getAttribute("data-tab") || String(index);
@@ -928,6 +978,424 @@
       button.dataset.copyLabel = original;
       button.textContent = success ? "Copied" : "Try again";
       window.setTimeout(function () { button.textContent = original; }, 1400);
+    }
+
+    function reviewEndpoint(id) {
+      var endpoint = siteAsset("__agent-docs/review/comments");
+      return id ? endpoint + "/" + encodeURIComponent(String(id)) : endpoint;
+    }
+
+    function requestReviewJson(url, options) {
+      var request = Object.assign({
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      }, options || {});
+      return fetch(url, request).then(function (response) {
+        if (!response.ok) {
+          var error = new Error("Review request failed with status " + response.status + ".");
+          error.status = response.status;
+          throw error;
+        }
+        if (response.status === 204 || typeof response.json !== "function") { return null; }
+        return response.json();
+      });
+    }
+
+    function normalizeReviewComment(value) {
+      if (!value || typeof value !== "object") { return null; }
+      var status = value.status === "answered" || value.status === "resolved" ? value.status : "open";
+      var body = typeof value.body === "string" ? value.body.trim() : "";
+      if (!body) { return null; }
+      return {
+        id: typeof value.id === "string" || typeof value.id === "number" ? String(value.id) : "",
+        route: normalizeRoute(typeof value.route === "string" ? value.route : state.route),
+        anchor: typeof value.anchor === "string" ? value.anchor.trim() : "",
+        quote: typeof value.quote === "string" ? value.quote.trim() : "",
+        body: body,
+        status: status,
+        reply: typeof value.reply === "string" ? value.reply.trim() : "",
+        createdAt: typeof value.createdAt === "string" ? value.createdAt : "",
+        updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+      };
+    }
+
+    function commentsFromReviewPayload(payload, route) {
+      var values = payload && Array.isArray(payload.comments) ? payload.comments : [];
+      var target = normalizeRoute(route);
+      return values.map(normalizeReviewComment).filter(function (comment) {
+        return comment && comment.route === target;
+      }).sort(compareReviewComments);
+    }
+
+    function compareReviewComments(left, right) {
+      var leftCreated = left.createdAt || left.updatedAt || "";
+      var rightCreated = right.createdAt || right.updatedAt || "";
+      if (leftCreated !== rightCreated) { return rightCreated.localeCompare(leftCreated); }
+      var leftUpdated = left.updatedAt || "";
+      var rightUpdated = right.updatedAt || "";
+      if (leftUpdated !== rightUpdated) { return rightUpdated.localeCompare(leftUpdated); }
+      return right.id.localeCompare(left.id);
+    }
+
+    function commentFromReviewPayload(payload) {
+      return normalizeReviewComment(payload && payload.comment);
+    }
+
+    function reviewStatusLabel(status) {
+      if (status === "answered") { return "Answered"; }
+      if (status === "resolved") { return "Resolved"; }
+      return "Open";
+    }
+
+    function reviewDate(value) {
+      if (!value) { return ""; }
+      var date = new Date(value);
+      if (!Number.isFinite(date.getTime())) { return ""; }
+      try {
+        return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+      } catch (ignore) {
+        return date.toLocaleString();
+      }
+    }
+
+    function renderReviewCount() {
+      var total = state.reviewComments.length;
+      // The badge is an action count; resolved comments remain visible in the thread.
+      var count = state.reviewComments.filter(function (comment) { return comment.status !== "resolved"; }).length;
+      elements.reviewCount.textContent = count > 99 ? "99+" : String(count);
+      elements.reviewCount.hidden = count === 0;
+      elements.reviewCount.setAttribute("aria-hidden", "true");
+      elements.reviewButton.setAttribute(
+        "aria-label",
+        count ? "Page comments, " + count + " unresolved" : total ? "Page comments, all resolved" : "Page comments",
+      );
+    }
+
+    function renderReviewList() {
+      elements.reviewList.replaceChildren();
+      renderReviewCount();
+      if (!state.reviewComments.length) {
+        var empty = document.createElement("p");
+        empty.className = "review-empty";
+        empty.textContent = "No comments on this page yet.";
+        elements.reviewList.appendChild(empty);
+        return;
+      }
+
+      state.reviewComments.forEach(function (comment) {
+        var item = document.createElement("article");
+        item.className = "review-comment";
+        item.dataset.reviewId = comment.id;
+
+        var header = document.createElement("header");
+        header.className = "review-comment-header";
+        var status = document.createElement("span");
+        status.className = "review-status is-" + comment.status;
+        status.textContent = reviewStatusLabel(comment.status);
+        header.appendChild(status);
+
+        var dateText = reviewDate(comment.updatedAt || comment.createdAt);
+        if (dateText) {
+          var time = document.createElement("time");
+          time.dateTime = comment.updatedAt || comment.createdAt;
+          time.textContent = dateText;
+          header.appendChild(time);
+        }
+        item.appendChild(header);
+
+        if (comment.anchor) {
+          var anchor = document.createElement("a");
+          anchor.className = "review-anchor";
+          anchor.href = siteRoute(state.route) + "#" + encodeURIComponent(comment.anchor);
+          anchor.dataset.route = "";
+          anchor.textContent = "#" + comment.anchor;
+          item.appendChild(anchor);
+        }
+
+        if (comment.quote) {
+          var quote = document.createElement("blockquote");
+          quote.className = "review-quote";
+          quote.textContent = comment.quote;
+          item.appendChild(quote);
+        }
+
+        var body = document.createElement("p");
+        body.className = "review-comment-body";
+        body.textContent = comment.body;
+        item.appendChild(body);
+
+        if (comment.reply) {
+          var reply = document.createElement("div");
+          reply.className = "review-reply";
+          var replyLabel = document.createElement("strong");
+          replyLabel.textContent = "Skill reply";
+          var replyBody = document.createElement("p");
+          replyBody.textContent = comment.reply;
+          reply.append(replyLabel, replyBody);
+          item.appendChild(reply);
+        }
+
+        if (comment.id) {
+          var actions = document.createElement("div");
+          actions.className = "review-comment-actions";
+          if (comment.status === "resolved" || (comment.status === "answered" && comment.reply)) {
+            var update = document.createElement("button");
+            update.className = "review-text-button review-status-button";
+            update.type = "button";
+            update.dataset.reviewId = comment.id;
+            update.dataset.reviewStatus = comment.status === "resolved" ? "open" : "resolved";
+            update.textContent = comment.status === "resolved" ? "Reopen" : "Resolve";
+            actions.appendChild(update);
+          } else {
+            var awaiting = document.createElement("span");
+            awaiting.className = "review-awaiting";
+            awaiting.textContent = comment.reply ? "Awaiting skill follow-up" : "Awaiting skill reply";
+            actions.appendChild(awaiting);
+          }
+          item.appendChild(actions);
+        }
+
+        elements.reviewList.appendChild(item);
+      });
+    }
+
+    function upsertReviewComment(comment) {
+      var index = state.reviewComments.findIndex(function (candidate) { return candidate.id === comment.id; });
+      if (index >= 0) {
+        state.reviewComments[index] = comment;
+      } else {
+        state.reviewComments.push(comment);
+      }
+      state.reviewComments.sort(compareReviewComments);
+    }
+
+    function setReviewBackgroundInert(active) {
+      [document.querySelector(".topbar"), document.querySelector(".shell"), elements.searchDialog]
+        .filter(Boolean).forEach(function (element) {
+          if (active) { element.setAttribute("inert", ""); }
+          else { element.removeAttribute("inert"); }
+        });
+    }
+
+    function closeReview(restoreFocus) {
+      if (elements.reviewPanel.hidden) { return; }
+      document.body.classList.remove("review-open");
+      elements.reviewPanel.hidden = true;
+      elements.reviewScrim.hidden = true;
+      elements.reviewButton.setAttribute("aria-expanded", "false");
+      setReviewBackgroundInert(false);
+      if (restoreFocus !== false && state.reviewReturnFocus && typeof state.reviewReturnFocus.focus === "function") {
+        state.reviewReturnFocus.focus();
+      }
+      state.reviewReturnFocus = null;
+    }
+
+    function nearestSelectionHeading(startNode) {
+      var node = startNode && startNode.nodeType === 1 ? startNode : startNode && startNode.parentElement;
+      if (!node || !elements.article.contains(node)) { return null; }
+      var nearest = null;
+      elements.article.querySelectorAll("h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]").forEach(function (heading) {
+        if (heading === node || heading.contains(node) || (heading.compareDocumentPosition(node) & 4)) {
+          nearest = heading;
+        }
+      });
+      return nearest;
+    }
+
+    function selectedReviewContext() {
+      if (typeof window.getSelection !== "function") { return null; }
+      var selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.rangeCount) { return null; }
+      var range = selection.getRangeAt(0);
+      var start = range.startContainer;
+      var end = range.endContainer;
+      var startElement = start.nodeType === 1 ? start : start.parentElement;
+      var endElement = end.nodeType === 1 ? end : end.parentElement;
+      if (!elements.article.contains(startElement) || !elements.article.contains(endElement)) { return null; }
+      var quote = String(selection.toString() || "").replace(/\s+/g, " ").trim();
+      if (!quote) { return null; }
+      if (quote.length > 2000) { quote = quote.slice(0, 1999) + "\u2026"; }
+      var heading = nearestSelectionHeading(start);
+      var anchor = heading ? String(heading.id || "").trim() : "";
+      if (!anchor || anchor.length > 256 || anchor.indexOf("#") !== -1 || /[\u0000-\u001f\u007f]/.test(anchor)) {
+        anchor = "";
+      }
+      return { quote: quote, anchor: anchor };
+    }
+
+    function setReviewContext(context) {
+      state.reviewContext = context && context.quote ? context : null;
+      elements.reviewSelection.hidden = !state.reviewContext;
+      elements.reviewClearSelection.hidden = !state.reviewContext;
+      elements.reviewSelectionText.textContent = state.reviewContext ? state.reviewContext.quote : "";
+      if (state.reviewContext && state.reviewContext.anchor) {
+        elements.reviewSelectionAnchor.textContent = "#" + state.reviewContext.anchor;
+        elements.reviewSelectionAnchor.href = siteRoute(state.route) + "#" + encodeURIComponent(state.reviewContext.anchor);
+        elements.reviewSelectionAnchor.hidden = false;
+      } else {
+        elements.reviewSelectionAnchor.textContent = "";
+        elements.reviewSelectionAnchor.removeAttribute("href");
+        elements.reviewSelectionAnchor.hidden = true;
+      }
+    }
+
+    function setReviewFormStatus(message, kind) {
+      elements.reviewFormStatus.textContent = message || "";
+      elements.reviewFormStatus.classList.toggle("is-error", kind === "error");
+    }
+
+    function resetReviewComposer() {
+      elements.reviewForm.reset();
+      elements.reviewSubmit.disabled = false;
+      setReviewContext(null);
+      setReviewFormStatus("");
+    }
+
+    function openReview() {
+      if (!state.reviewAvailable) { return; }
+      closeSearch();
+      closeSidebar();
+      var context = selectedReviewContext();
+      if (context) { setReviewContext(context); }
+      state.reviewReturnFocus = document.activeElement && document.activeElement !== document.body
+        ? document.activeElement
+        : elements.reviewButton;
+      elements.reviewPanel.hidden = false;
+      elements.reviewScrim.hidden = false;
+      elements.reviewButton.setAttribute("aria-expanded", "true");
+      document.body.classList.add("review-open");
+      setReviewBackgroundInert(true);
+      window.setTimeout(function () { elements.reviewBody.focus(); }, 0);
+    }
+
+    function hideReviewFeature(focusFallback) {
+      var wasOpen = !elements.reviewPanel.hidden;
+      state.reviewAvailable = false;
+      state.reviewComments = [];
+      elements.reviewButton.hidden = true;
+      closeReview(false);
+      renderReviewList();
+      if (wasOpen && focusFallback !== false) {
+        window.requestAnimationFrame(function () { elements.article.focus({ preventScroll: true }); });
+      }
+    }
+
+    function cancelReviewRefresh() {
+      if (state.reviewController) { state.reviewController.abort(); }
+      state.reviewController = null;
+      state.reviewRequestNumber += 1;
+      elements.reviewRefresh.disabled = false;
+    }
+
+    function refreshReviewComments(route) {
+      var target = normalizeRoute(route || state.route || "/");
+      cancelReviewRefresh();
+      state.reviewController = new AbortController();
+      var signal = state.reviewController.signal;
+      var requestNumber = ++state.reviewRequestNumber;
+      elements.reviewRefresh.disabled = true;
+      return requestReviewJson(reviewEndpoint() + "?route=" + encodeURIComponent(target), { signal: signal })
+        .then(function (payload) {
+          if (requestNumber !== state.reviewRequestNumber || target !== state.route) { return; }
+          state.reviewAvailable = true;
+          state.reviewComments = commentsFromReviewPayload(payload, target);
+          elements.reviewButton.hidden = false;
+          renderReviewList();
+        }).catch(function (error) {
+          if (error && error.name === "AbortError") { return; }
+          if (requestNumber === state.reviewRequestNumber && target === state.route) { hideReviewFeature(true); }
+        }).finally(function () {
+          if (requestNumber === state.reviewRequestNumber) {
+            state.reviewController = null;
+            elements.reviewRefresh.disabled = false;
+          }
+        });
+    }
+
+    function saveReviewComment() {
+      var body = elements.reviewBody.value.trim();
+      if (!body) {
+        setReviewFormStatus("Enter a comment first.", "error");
+        elements.reviewBody.focus();
+        return Promise.resolve();
+      }
+      if (body.length > 8000) {
+        setReviewFormStatus("Comments can contain up to 8,000 characters.", "error");
+        elements.reviewBody.focus();
+        return Promise.resolve();
+      }
+      var targetRoute = state.route;
+      var pageRequestNumber = state.requestNumber;
+      var payload = { route: targetRoute, body: body };
+      if (state.reviewContext && state.reviewContext.anchor) { payload.anchor = state.reviewContext.anchor; }
+      if (state.reviewContext && state.reviewContext.quote) { payload.quote = state.reviewContext.quote; }
+      cancelReviewRefresh();
+      elements.reviewSubmit.disabled = true;
+      setReviewFormStatus("Saving\u2026");
+      return requestReviewJson(reviewEndpoint(), {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then(function (response) {
+        if (targetRoute !== state.route || pageRequestNumber !== state.requestNumber) { return; }
+        var comment = commentFromReviewPayload(response);
+        if (comment && comment.route === state.route) { upsertReviewComment(comment); }
+        elements.reviewForm.reset();
+        setReviewContext(null);
+        setReviewFormStatus("Comment saved.");
+        renderReviewList();
+      }).catch(function () {
+        if (targetRoute !== state.route || pageRequestNumber !== state.requestNumber) { return; }
+        setReviewFormStatus("Comment could not be saved. Try again.", "error");
+      }).finally(function () {
+        if (targetRoute === state.route && pageRequestNumber === state.requestNumber) {
+          elements.reviewSubmit.disabled = false;
+        }
+      });
+    }
+
+    function updateReviewComment(id, status, button) {
+      if (!id || (status !== "open" && status !== "resolved")) { return Promise.resolve(); }
+      var targetRoute = state.route;
+      var pageRequestNumber = state.requestNumber;
+      cancelReviewRefresh();
+      button.disabled = true;
+      setReviewFormStatus("Updating\u2026");
+      return requestReviewJson(reviewEndpoint(id), {
+        method: "PATCH",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ status: status }),
+      }).then(function (response) {
+        if (targetRoute !== state.route || pageRequestNumber !== state.requestNumber) { return; }
+        var updated = commentFromReviewPayload(response);
+        if (updated && updated.route === state.route) {
+          upsertReviewComment(updated);
+          renderReviewList();
+        }
+        setReviewFormStatus(status === "resolved" ? "Comment resolved." : "Comment reopened.");
+      }).catch(function () {
+        if (targetRoute !== state.route || pageRequestNumber !== state.requestNumber) { return; }
+        button.disabled = false;
+        setReviewFormStatus("Comment could not be updated. Try again.", "error");
+      });
+    }
+
+    function trapReviewFocus(event) {
+      if (event.key !== "Tab") { return; }
+      var focusable = Array.from(elements.reviewPanel.querySelectorAll(
+        'button:not([disabled]), textarea:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter(function (item) { return !item.hidden; });
+      if (!focusable.length) { event.preventDefault(); elements.reviewPanel.focus(); return; }
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
     function openSidebar() {
@@ -1098,7 +1566,9 @@
         var target = routeLinkTarget(routeLink);
         if (target) {
           event.preventDefault();
-          navigate(target.route, { hash: target.hash, focus: !target.hash });
+          var fromReview = Boolean(routeLink.closest("#review-panel"));
+          if (fromReview) { closeReview(false); }
+          navigate(target.route, { hash: target.hash, focus: !target.hash, focusHash: fromReview });
           return;
         }
       }
@@ -1147,6 +1617,41 @@
     elements.themeButton.addEventListener("click", function () {
       applyTheme(root.getAttribute("data-theme") === "dark" ? "light" : "dark", true);
     });
+    elements.reviewButton.addEventListener("click", openReview);
+    elements.reviewClose.addEventListener("click", function () { closeReview(true); });
+    elements.reviewScrim.addEventListener("click", function () { closeReview(true); });
+    elements.reviewUseSelection.addEventListener("click", function () {
+      var context = selectedReviewContext();
+      if (context) {
+        setReviewContext(context);
+        setReviewFormStatus("Selected text attached.");
+      } else {
+        setReviewFormStatus("Select text in the document before opening comments.", "error");
+      }
+    });
+    elements.reviewClearSelection.addEventListener("click", function () {
+      setReviewContext(null);
+      setReviewFormStatus("Selected text removed.");
+    });
+    elements.reviewRefresh.addEventListener("click", function () { refreshReviewComments(state.route); });
+    elements.reviewForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      saveReviewComment();
+    });
+    elements.reviewList.addEventListener("click", function (event) {
+      var button = event.target.closest && event.target.closest(".review-status-button");
+      if (!button) { return; }
+      updateReviewComment(button.dataset.reviewId, button.dataset.reviewStatus, button);
+    });
+    elements.reviewPanel.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeReview(true);
+      } else {
+        trapReviewFocus(event);
+      }
+    });
     elements.searchButton.addEventListener("click", openSearch);
     elements.searchClose.addEventListener("click", closeSearch);
     elements.searchDialog.addEventListener("click", function (event) {
@@ -1168,6 +1673,13 @@
     });
 
     document.addEventListener("keydown", function (event) {
+      if (!elements.reviewPanel.hidden) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeReview(true);
+        }
+        return;
+      }
       var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName) ||
         (document.activeElement && document.activeElement.isContentEditable);
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -1177,7 +1689,8 @@
         event.preventDefault();
         openSearch();
       } else if (event.key === "Escape") {
-        closeSidebar();
+        if (!elements.reviewPanel.hidden) { closeReview(true); }
+        else { closeSidebar(); }
       }
     });
 

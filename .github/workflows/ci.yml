@@ -97,6 +97,7 @@ jobs:
           dotnet run --project src/AgentDocs.Cli --configuration Release --no-build -- render --repo . --config agent-docs.json --out build --check
           cmp THIRD-PARTY-NOTICES.md build/THIRD-PARTY-NOTICES.md
           cmp third_party_licenses/Markdig-BSD-2-Clause.txt build/third_party_licenses/Markdig-BSD-2-Clause.txt
+          cmp third_party_licenses/PrismJS-MIT.txt build/third_party_licenses/PrismJS-MIT.txt
           cmp third_party_licenses/Tailwind-CSS-MIT.txt build/third_party_licenses/Tailwind-CSS-MIT.txt
           cmp third_party_licenses/Tailwind-Preflight-MIT.txt build/third_party_licenses/Tailwind-Preflight-MIT.txt
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -127,13 +128,14 @@ jobs:
         run: npm ci --prefix styles
       - name: Verify distributed stylesheet notices
         run: |
+          cmp styles/node_modules/prismjs/LICENSE third_party_licenses/PrismJS-MIT.txt
           cmp styles/node_modules/tailwindcss/LICENSE third_party_licenses/Tailwind-CSS-MIT.txt
           cmp styles/node_modules/tailwindcss/src/css/LICENSE third_party_licenses/Tailwind-Preflight-MIT.txt
       - name: Rebuild stylesheet
         run: npm run build --prefix styles
       - name: Reader and style smoke tests
         run: npm test --prefix styles
-      - name: Generated stylesheet is current
+      - name: Generated browser assets are current
         run: |
-          git diff --exit-code -- web/app.css
-          test -z "$(git status --porcelain -- web/app.css)"
+          git diff --exit-code -- web/app.css web/prism.js
+          test -z "$(git status --porcelain -- web/app.css web/prism.js)"

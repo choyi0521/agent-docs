@@ -55,12 +55,14 @@ public static class CodeBrowser
             if (lines.Length > 0 && lines[^1].Length == 0)
                 lines = lines[..^1];
             string title = Path.GetFileName(relative);
-            string html = RenderLines(lines);
+            string language = SourcePolicy.Lexer(relative);
+            string html = RenderLines(lines, language);
             object page = new
             {
                 kind = "code",
                 title,
                 path = relative,
+                language,
                 lines,
                 sourceUrl = policy.SourceUrl(relative),
                 html,
@@ -81,7 +83,7 @@ public static class CodeBrowser
         return new(files.Count, routes, anchors, search, navigation);
     }
 
-    private static string RenderLines(IReadOnlyList<string> lines)
+    private static string RenderLines(IReadOnlyList<string> lines, string language)
     {
         StringBuilder html = new("<div class=\"source-lines not-prose\"><table><tbody>");
         for (int index = 0; index < lines.Count; index++)
@@ -89,7 +91,8 @@ public static class CodeBrowser
             int number = index + 1;
             html.Append("<tr id=\"L-").Append(number).Append("\"><th><a href=\"#L-")
                 .Append(number).Append("\" aria-label=\"line ").Append(number).Append("\">")
-                .Append(number).Append("</a></th><td><pre><code>")
+                .Append(number).Append("</a></th><td><pre><code class=\"language-")
+                .Append(language).Append("\">")
                 .Append(TextUtilities.HtmlEscape(lines[index]))
                 .Append("</code></pre></td></tr>");
         }

@@ -1,7 +1,7 @@
 # Build and preview the sample site
 
 This guide produces a validated static site in `build/` and serves it on the
-loopback interface for local inspection.
+loopback interface for local inspection and review comments.
 
 ## Prerequisites
 
@@ -71,7 +71,49 @@ dotnet run --project src/AgentDocs.Cli --configuration Release -- serve --repo .
 ```
 
 Open `http://127.0.0.1:4173/`. The preview listens only on the loopback
-interface and accepts read-only requests. Stop it with Ctrl+C.
+interface. Its static files remain read-only, while its local review endpoint
+can update `.agent-docs/review-comments.json`. The endpoint is an
+unauthenticated local API: browser request checks do not protect it from other
+processes on the same operating system. Use it only on a trusted workstation
+and stop it with Ctrl+C when review work is finished.
+
+The default review file is ignored by Git. To use another file, pass a path
+under the reserved repository-root `.agent-docs/` directory:
+
+```powershell
+dotnet run --project src/AgentDocs.Cli --configuration Release -- serve --repo . --config agent-docs.json --out build --port 4173 --no-render --review-data .agent-docs/team-review.json
+```
+
+No override can escape `.agent-docs/`. Paths outside that reserved subtree,
+symbolic-link or reparse paths, and paths under sentinel-owned generated output
+trees are rejected. The entire `.agent-docs/` directory is Git-ignored local
+state and is hard-excluded from rendered documents, published source and
+snippets, browsable root files, and agent-workflow inputs. Preview preflight
+rejects a configuration that attempts to publish the reserved subtree.
+
+## Capture and process review comments
+
+Open **Comments** in the preview to leave a page-level comment. To preserve the
+specific context, select text in the document first and choose **Use selected
+text**; the saved record includes the quote and nearest heading anchor when one
+is available.
+
+Ask an authoring agent to use `$docs-authoring` to inspect the local review
+file. The workflow can save a reply and mark a comment `answered`, or mark it
+`resolved` after the documentation has been updated. Both `answered` and
+`resolved` require a saved reply. Reopen a resolved comment before writing a
+new reply.
+
+The preview and the docs-authoring helper serialize mutations with a persistent
+sibling operating-system lock. A writer retries every 50 milliseconds for up
+to 5 seconds; if that bounded wait expires, refresh the review state and retry.
+The lock file remains beside the review data after use. Its exact UTF-8 header
+is `agent-docs-review-lock-v1` followed by one LF byte; it is coordination
+state, not a stale marker to delete.
+
+Review data is an authoring input, not site content. A `render` contains no
+comments and no writable review endpoint, even when the local preview has an
+active thread.
 
 ## Diagnose a failed render
 

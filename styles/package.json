@@ -3,12 +3,15 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build": "tailwindcss -c tailwind.config.js -i app.src.css -o ../web/app.css --minify",
-    "test": "node smoke.test.cjs && node generated.test.cjs",
+    "build": "npm run build:css && npm run build:syntax",
+    "build:css": "tailwindcss -c tailwind.config.js -i app.src.css -o ../web/app.css --minify",
+    "build:syntax": "node build-prism.cjs",
+    "test": "node smoke.test.cjs && node prism.test.cjs && node generated.test.cjs",
     "test:generated": "node generated.test.cjs"
   },
   "devDependencies": {
     "jsdom": "26.1.0",
+    "prismjs": "1.30.0",
     "tailwindcss": "3.4.17"
   }
 }

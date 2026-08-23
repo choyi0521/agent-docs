@@ -42,6 +42,8 @@ internal static class AgentDocsCli
 
     private static async Task<int> ServeAsync(Options options)
     {
+        string reviewData = StaticDocsServer.ResolveReviewDataPath(
+            options.Repository, options.ReviewData, options.Output, options.Configuration);
         if (!options.NoRender)
         {
             BuildReport report = AgentDocsBuilder.Build(options.Repository, options.Configuration,
@@ -57,8 +59,12 @@ internal static class AgentDocsCli
             stopped.Cancel();
         };
         string mount = StaticDocsServer.NormalizeBasePath(options.BasePath);
-        Console.WriteLine($"Serving read-only preview at http://127.0.0.1:{options.Port}{mount}");
-        await StaticDocsServer.RunAsync(options.Output, options.Port, mount, stopped.Token);
+        Console.WriteLine($"Serving preview with local review comments at "
+                          + $"http://127.0.0.1:{options.Port}{mount}");
+        Console.WriteLine($"Review comments: {reviewData}");
+        await StaticDocsServer.RunAsync(options.Output, options.Port, mount,
+                                        options.Repository, reviewData,
+                                        options.Configuration, stopped.Token);
         return 0;
     }
 
@@ -102,6 +108,7 @@ internal static class AgentDocsCli
         internal bool NoRender { get; init; }
         internal int Port { get; init; }
         internal string BasePath { get; init; } = "/";
+        internal string? ReviewData { get; init; }
 
         internal static Options Parse(string[] args, string command)
         {
@@ -117,6 +124,8 @@ internal static class AgentDocsCli
             bool portSet = false;
             bool baseSet = false;
             bool repoSet = false;
+            string? reviewData = null;
+            bool reviewDataSet = false;
             for (int index = 0; index < args.Length; index++)
             {
                 string option = args[index];
@@ -133,6 +142,7 @@ internal static class AgentDocsCli
                     case "--out": output = Value(); break;
                     case "--port" when int.TryParse(Value(), out int parsed): port = parsed; portSet = true; break;
                     case "--base": basePath = Value(); baseSet = true; break;
+                    case "--review-data": reviewData = Value(); reviewDataSet = true; break;
                     case "--check": check = true; break;
                     case "--no-render": noRender = true; break;
                     case "--help": throw new InvalidDataException(Usage());
@@ -147,6 +157,8 @@ internal static class AgentDocsCli
                 throw new InvalidDataException("--check cannot be combined with --no-render");
             if (command == "render" && (portSet || baseSet))
                 throw new InvalidDataException("--port and --base are only valid with serve or probe");
+            if (command != "serve" && reviewDataSet)
+                throw new InvalidDataException("--review-data is only valid with serve");
             if (command == "probe" && (check || noRender || config is not null || output is not null
                                         || repoSet))
                 throw new InvalidDataException("probe accepts only --port and --base");
@@ -165,11 +177,13 @@ internal static class AgentDocsCli
                 NoRender = noRender,
                 Port = port,
                 BasePath = basePath,
+                ReviewData = reviewData,
             };
         }
 
         private static string Usage() =>
             "agent-docs [render|serve|probe] [--repo PATH] [--config PATH] [--out PATH] "
-            + "[--check] [--port 4173] [--base /prefix] [--no-render]";
+            + "[--check] [--port 4173] [--base /prefix] "
+            + "[--review-data PATH] [--no-render]";
     }
 }

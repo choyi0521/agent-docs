@@ -21,6 +21,17 @@ public static class PathSafety
     public static bool Overlaps(string first, string second) =>
         IsSameOrUnder(first, second) || IsSameOrUnder(second, first);
 
+    internal static bool ContainsAgentDocsDirectory(string candidate, string repoRoot)
+    {
+        if (!IsSameOrUnder(candidate, repoRoot))
+            return false;
+        string relative = Path.GetRelativePath(Full(repoRoot), Full(candidate));
+        return relative.Split(Path.DirectorySeparatorChar,
+                    StringSplitOptions.RemoveEmptyEntries)
+            .Any(segment => string.Equals(
+                segment, ".agent-docs", StringComparison.OrdinalIgnoreCase));
+    }
+
     public static string ResolveRepoRelative(string repoRoot, string configured, string label,
                                              bool allowDot = false)
     {
@@ -85,7 +96,7 @@ public static class PathSafety
 
     private static void RejectReparseIfPresent(string path, string label)
     {
-        if ((File.Exists(path) || Directory.Exists(path)) && IsReparsePoint(path))
+        if (IsReparsePoint(path))
             throw new InvalidDataException($"{label} contains a symbolic link or reparse point: {path}");
     }
 

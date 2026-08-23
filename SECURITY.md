@@ -34,9 +34,29 @@ Security-sensitive guarantees include:
 - snippet and figure reads do not follow symlinks or junctions;
 - generated-output cleanup refuses repository, source, documentation, and other
   unsafe targets;
-- the preview server binds to loopback by default and exposes no anonymous
-  write API;
+- the reserved repository-root `.agent-docs/` subtree is Git-ignored local
+  state and is hard-excluded from rendering, source publication, snippets,
+  browsable root files, and agent-workflow inputs;
+- the preview server binds only to loopback; its review endpoint is an
+  unauthenticated local write API for repository-local authoring state;
 - the public-boundary check examines authored and generated repository files.
+
+Run the review-enabled preview only on a trusted local workstation. Any local
+process that can connect to the loopback port can submit a review write, so the
+endpoint is not an authorization boundary between users or processes on the
+same operating system. Requiring JSON, checking a matching `Origin` when one is
+present, rejecting cross-site fetch metadata, and omitting CORS protect against
+ordinary browser cross-site request forgery; they do not authenticate a local
+client or protect against another process on the same operating system. Stop
+the preview when review work is finished, and never expose it through a proxy,
+port forward, shared host, or production deployment. Static `render` output
+contains neither review data nor the writable review API.
+
+Review files may exist only beneath `.agent-docs/`. The preview and the
+docs-authoring helper serialize writes with a persistent sibling operating-
+system lock, retrying every 50 milliseconds for at most 5 seconds. The lock's
+exact UTF-8 content is `agent-docs-review-lock-v1` followed by one LF byte and
+it remains in place after release; do not remove it as stale state.
 
 Run `python -B tools/check_public_boundary.py` before publishing a tree. Treat
 any credential committed to version control as compromised even if a later
