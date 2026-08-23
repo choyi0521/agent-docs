@@ -1,0 +1,351 @@
+{
+  "version": 1,
+  "id": "document-flow-figure",
+  "question": "How does the builder add source snippets and figures to Markdown without publishing arbitrary repository content or active SVG?",
+  "claim": "Only an explicitly allowed source region and a passive SVG can join the rendered Markdown page; either boundary violation stops the checked build before publication.",
+  "subject": "An authored Markdown page that references one source region and one SVG figure.",
+  "threeSecondTakeaway": "A Markdown page accepts a marked excerpt and a passive SVG through separate gates; violations stop instead of joining the page.",
+  "caption": "Only explicitly allowed source regions and passive SVG enter the rendered page; rejected inputs stop the checked build before its static site data is publishable.",
+  "decomposition": {
+    "subject": "The same page is visible before and after rendering.",
+    "action": "The renderer extracts an allowed region, validates a passive vector, and composes both into the page.",
+    "constraint": "Source publication and SVG safety are separate, fail-closed gates followed by the checked-build gate.",
+    "state": "Allowed material travels on continuous paths while rejected material terminates at visible stop marks.",
+    "outcome": "A passing build emits a stack of static site data containing the rendered page."
+  },
+  "labelFreeCompositions": [
+    {
+      "id": "candidate-filtered-assembly",
+      "model": "Track one folded page down a central spine while a funnel trims a source file and a shield admits a vector; the accepted pieces converge into the page and rejected spurs end at stop marks."
+    },
+    {
+      "id": "candidate-before-after-cutaway",
+      "model": "Use two aligned page cutaways with a single transverse inspection plane between them, showing allowed inclusions inside the lower page and unsafe material retained above the plane."
+    }
+  ],
+  "selectedComposition": {
+    "id": "candidate-filtered-assembly",
+    "reason": "The two different gate silhouettes expose that source selection and SVG sanitization are independent mechanisms, while their converging paths make page assembly traceable without a legend."
+  },
+  "readingOrder": [
+    "authored-page",
+    "direct-render-path",
+    "parallel-input-lanes",
+    "source-boundary",
+    "figure-boundary",
+    "composition-point",
+    "rendered-page",
+    "checked-build-gate",
+    "static-output"
+  ],
+  "representativeTrace": {
+    "status": "pass",
+    "entity": "The authored page.md document",
+    "steps": [
+      "authored-page",
+      "direct-render-path",
+      "composition-point",
+      "rendered-page",
+      "checked-build-gate",
+      "publication-path",
+      "static-output"
+    ]
+  },
+  "elements": [
+    {
+      "id": "authored-page",
+      "svgId": "authored-page",
+      "role": "subject",
+      "meaning": "The authored Markdown page contains ordinary references to a named source region and a local figure bundle.",
+      "encoding": "A folded document silhouette contains two inset reference tokens.",
+      "whyThisEncoding": "The repeated document silhouette lets the reader follow the same page through the transformation, while inset tokens show references rather than embedded arbitrary inputs.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#MarkdownPageRenderer"
+      ],
+      "removalLoss": "The reader would have no concrete page to trace through the build."
+    },
+    {
+      "id": "direct-render-path",
+      "svgId": "direct-render-path",
+      "role": "action",
+      "verb": "renders",
+      "meaning": "Markdown rendering carries the authored page toward a generated page.",
+      "encoding": "A continuous vertical spine preserves the page's identity and establishes the primary direction.",
+      "whyThisEncoding": "A single uninterrupted path makes rendering the dominant action instead of implying that optional inputs replace the page.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#Render"
+      ],
+      "removalLoss": "The before and after page states would look unrelated."
+    },
+    {
+      "id": "source-input",
+      "svgId": "source-input",
+      "role": "context",
+      "meaning": "A source file is a possible snippet input, not an automatically published repository tree.",
+      "encoding": "A code-lined file silhouette approaches the source gate as a separate lane.",
+      "whyThisEncoding": "The file silhouette distinguishes source material from the central Markdown document before selection occurs.",
+      "evidence": [
+        "src/AgentDocs/Documents.cs#SourcePolicy"
+      ],
+      "removalLoss": "The source allowlist would have no visible input to constrain."
+    },
+    {
+      "id": "source-boundary",
+      "svgId": "source-boundary",
+      "role": "boundary",
+      "meaning": "The configured source publication policy is a real boundary around eligible paths and extensions.",
+      "encoding": "A broad file lane narrows through a funnel whose neck admits only a smaller region.",
+      "whyThisEncoding": "A funnel exposes narrowing directly; a generic validation box would hide that only a subset may cross.",
+      "evidence": [
+        "src/AgentDocs/Documents.cs#ResolveAllowed"
+      ],
+      "removalLoss": "The figure would falsely suggest that any repository source can join a page."
+    },
+    {
+      "id": "source-extraction",
+      "svgId": "source-extraction",
+      "role": "action",
+      "verb": "extracts",
+      "meaning": "The renderer extracts the content between one matching pair of named region markers.",
+      "encoding": "A short code strip emerges from the funnel and follows a solid path into the composition point.",
+      "whyThisEncoding": "The visibly smaller strip makes selection a transformation of the source file, not just another labelled node.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#RenderSnippet",
+        "src/AgentDocs/Snippets.cs#Resolve"
+      ],
+      "removalLoss": "The reader could not see what the source gate admits or how it reaches the page."
+    },
+    {
+      "id": "source-rejection",
+      "svgId": "source-rejection",
+      "role": "state",
+      "meaning": "A disallowed path, extension, or invalid marker set becomes a snippet diagnostic instead of page content.",
+      "encoding": "A dashed spur terminates at a red crossed stop and never reaches the composition point.",
+      "whyThisEncoding": "The structural dead end preserves the rejected status in grayscale and prevents color from carrying the claim alone.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#SnippetErrors"
+      ],
+      "removalLoss": "Fail-closed behavior at the source boundary would be invisible."
+    },
+    {
+      "id": "figure-input",
+      "svgId": "figure-input",
+      "role": "context",
+      "meaning": "A self-contained SVG bundle is a possible figure input.",
+      "encoding": "Simple vector primitives approach the SVG gate in a lane separate from source publication.",
+      "whyThisEncoding": "Visible vector geometry differentiates a figure from both the Markdown sheet and the source file.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#RenderFigure"
+      ],
+      "removalLoss": "The SVG safety boundary would have no visible subject to validate."
+    },
+    {
+      "id": "figure-boundary",
+      "svgId": "figure-boundary",
+      "role": "boundary",
+      "meaning": "The SVG loader permits only a fixed passive element and attribute subset with local references.",
+      "encoding": "A shield-shaped aperture encloses the passive vector lane.",
+      "whyThisEncoding": "The protective contour makes a content-safety boundary recognizable and materially different from source narrowing.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#SafeSvg"
+      ],
+      "removalLoss": "The figure would imply that arbitrary SVG markup is inlined."
+    },
+    {
+      "id": "figure-validation",
+      "svgId": "figure-validation",
+      "role": "action",
+      "verb": "admits",
+      "meaning": "A passive SVG that satisfies the safe subset is admitted to page composition.",
+      "encoding": "One intact vector primitive leaves the shield on a continuous teal path into the composition point.",
+      "whyThisEncoding": "Keeping the primitive intact distinguishes safety validation from the source extraction transformation.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#Load"
+      ],
+      "removalLoss": "The successful SVG path into the rendered page would be missing."
+    },
+    {
+      "id": "figure-rejection",
+      "svgId": "figure-rejection",
+      "role": "state",
+      "meaning": "Active or unsupported SVG content becomes a figure diagnostic instead of entering the page.",
+      "encoding": "A dashed spur ends at the same crossed stop convention used for rejected source material.",
+      "whyThisEncoding": "A dead-end branch makes rejection structural and the repeated stop silhouette makes the two failure states comparable.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#FigureErrors"
+      ],
+      "removalLoss": "The fail-closed SVG behavior would be absent."
+    },
+    {
+      "id": "parallel-input-lanes",
+      "role": "sequence",
+      "meaning": "Source selection and SVG validation are independent checks that occur before composition.",
+      "encoding": "The funnel and shield occupy aligned, separated lanes and converge only after their exits.",
+      "whyThisEncoding": "Parallel alignment communicates independent preconditions; the central whitespace prevents the reader from treating them as one ordered pipeline.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#RenderSnippet",
+        "src/AgentDocs/MarkdownRendering.cs#RenderFigure"
+      ],
+      "removalLoss": "The reader could confuse source authorization with SVG content validation."
+    },
+    {
+      "id": "composition-point",
+      "svgId": "composition-point",
+      "role": "action",
+      "verb": "composes",
+      "meaning": "Accepted Markdown, snippet HTML, and safe inline SVG are composed into one rendered page.",
+      "encoding": "Three solid paths meet at one dark junction before continuing as a single page path.",
+      "whyThisEncoding": "A physical convergence makes assembly visible and reserves the dark junction for exactly one operation.",
+      "evidence": [
+        "src/AgentDocs/MarkdownRendering.cs#Render"
+      ],
+      "removalLoss": "The accepted inputs would appear adjacent rather than incorporated into the same page."
+    },
+    {
+      "id": "rendered-page",
+      "svgId": "rendered-page",
+      "role": "state",
+      "meaning": "The generated page contains the selected excerpt and validated vector as distinct rendered fragments.",
+      "encoding": "The original folded-page silhouette reappears with the code strip and vector visibly inside it.",
+      "whyThisEncoding": "Before-and-after identity plus containment shows that the page changed by incorporating the two admitted pieces.",
+      "evidence": [
+        "src/AgentDocs/SpaceRenderer.cs#Render"
+      ],
+      "removalLoss": "The figure would not show the result of composition."
+    },
+    {
+      "id": "checked-build-gate",
+      "svgId": "checked-build-gate",
+      "role": "constraint",
+      "meaning": "Publication requires a checked build with no collected content-gate errors.",
+      "encoding": "A transverse barrier has one central aperture aligned with the successful page path.",
+      "whyThisEncoding": "The aperture makes passing conditional instead of implying that every render is publishable.",
+      "evidence": [
+        "src/AgentDocs/Models.cs#Broken"
+      ],
+      "removalLoss": "The distinction between generated output and publishable checked output would disappear."
+    },
+    {
+      "id": "publication-path",
+      "svgId": "publication-path",
+      "role": "action",
+      "verb": "emits",
+      "meaning": "A passing render emits static site artifacts.",
+      "encoding": "The page's solid path crosses the check aperture and ends at the output stack.",
+      "whyThisEncoding": "Crossing the gate on the same path ties publication to the successful checked page instead of to either rejected spur.",
+      "evidence": [
+        "src/AgentDocs/AgentDocsBuilder.cs#Build"
+      ],
+      "removalLoss": "The terminal stack would not be connected to the checked build."
+    },
+    {
+      "id": "static-output",
+      "svgId": "static-output",
+      "role": "state",
+      "meaning": "The outcome is a set of static content, navigation, search, and report data for the documentation site.",
+      "encoding": "Three offset file silhouettes form a terminal stack below the check gate.",
+      "whyThisEncoding": "A file stack expresses multiple static artifacts without using interchangeable component boxes.",
+      "evidence": [
+        "src/AgentDocs/AgentDocsBuilder.cs#WriteJson",
+        "src/AgentDocs/SpaceRenderer.cs#WriteJson"
+      ],
+      "removalLoss": "The reader would not see what a passing build produces."
+    },
+    {
+      "id": "accessible-title",
+      "svgId": "document-flow-title",
+      "role": "accessibility",
+      "meaning": "Assistive technology receives a concise name for the figure.",
+      "encoding": "A top-level non-visible SVG title is referenced by aria-labelledby.",
+      "whyThisEncoding": "The native SVG accessibility name is available without adding a visible in-diagram heading.",
+      "evidence": [
+        "docs/_assets/figures/document-flow/build.py#build_svg"
+      ],
+      "removalLoss": "The inline SVG would lose its concise accessible name."
+    },
+    {
+      "id": "accessible-description",
+      "svgId": "document-flow-description",
+      "role": "accessibility",
+      "meaning": "Assistive technology receives the full flow, gate, rejection, and outcome description.",
+      "encoding": "A top-level non-visible SVG description is referenced by aria-labelledby after the title.",
+      "whyThisEncoding": "The description communicates the geometry-dependent conclusion without exposing a paragraph inside the drawing.",
+      "evidence": [
+        "docs/_assets/figures/document-flow/build.py#build_svg"
+      ],
+      "removalLoss": "Non-visual readers would miss the independent gates and stopped branches."
+    }
+  ],
+  "review": {
+    "threeSecond": {
+      "status": "pass",
+      "observation": "At 352px display width, the repeated page silhouette and the two gate shapes dominate; solid paths visibly converge while crossed dashed spurs stop."
+    },
+    "labelSwap": {
+      "status": "pass",
+      "observation": "The funnel removes most of a file while the shield preserves a vector, so changing labels cannot turn the composition into an unrelated noun pipeline."
+    },
+    "labelOff": {
+      "status": "pass",
+      "observation": "Without labels, one page descends through a central transformation, a file is narrowed, a vector is screened, failures dead-end, and accepted material joins the lower page."
+    },
+    "pointAndExplain": {
+      "status": "pass",
+      "observation": "Every visible file, token, gate, accepted path, stopped path, junction, repeated page, check aperture, output stack, label backdrop, and meaningful lane separation is covered by an intent element."
+    },
+    "ablation": {
+      "status": "pass",
+      "observation": "Removing either gate changes the safety claim; removing a dead end erases fail-closed status; removing the repeated page, junction, aperture, or stack erases subject identity, composition, publication constraint, or outcome."
+    },
+    "counterfactual": {
+      "status": "pass",
+      "observation": "If arbitrary source or active SVG could enter, its dashed spur and crossed stop would need to become a solid path crossing the corresponding gate into the junction."
+    },
+    "arrowVerb": {
+      "status": "pass",
+      "observation": "The center connector renders, the source connector extracts, the vector connector admits, the junction composes, and the final connector emits; no connector class carries two verbs."
+    },
+    "boundary": {
+      "status": "pass",
+      "observation": "The funnel denotes the configured source publication boundary, the shield denotes the safe SVG subset, and the transverse aperture denotes the checked-build publication condition."
+    },
+    "trace": {
+      "status": "pass",
+      "observation": "The same folded page can be followed from page.md down the render spine, through the composition point into the rendered-page state, then across the check aperture to static site data."
+    },
+    "thumbnail": {
+      "status": "pass",
+      "observation": "At reduced size, the vertical page-to-stack direction, differently shaped side gates, convergence, and two crossed rejection spurs remain recognizable."
+    },
+    "articleTypography": {
+      "status": "pass",
+      "observation": "In the 704px article slot the SVG preserves its authored 352px width: ordinary labels render at 16px and emphasis labels at 18px, for two visible sizes. In a 284px narrow content slot they estimate to 12.9px and 14.5px while the one-column composition remains uncut."
+    },
+    "grayscale": {
+      "status": "pass",
+      "observation": "Acceptance uses continuous paths and inclusion, rejection uses dashed dead ends plus crossed stops, selection uses narrowing, and validation uses a shield; color only reinforces those structures."
+    },
+    "proseDependency": {
+      "status": "pass",
+      "observation": "The drawing independently communicates selective admission, independent gates, stopped failures, page composition, a final check, and static output."
+    },
+    "sourceTruth": {
+      "status": "pass",
+      "observation": "The source lane maps to SourcePolicy and snippet markers, the vector lane maps to SafeSvg, diagnostic dead ends map to snippet and figure errors, and the output stack maps to generated JSON artifacts."
+    },
+    "blindReview": {
+      "status": "pass",
+      "reviewerLabel": "independent-reviewer",
+      "artifact": "docs/_assets/figures/document-flow/figure.svg at 352px wide",
+      "prompt": "Without a caption or surrounding prose, state the conclusion, subject, action, constraint, and any status distinction visible in this figure.",
+      "recovered": {
+        "claim": "Allowlisted source excerpts and safe SVG content are combined into a rendered page, checked, and emitted as static site data.",
+        "subject": "A documentation rendering pipeline.",
+        "action": "A page references source and figure inputs; approved content converges into the rendered page, passes a check, and becomes static site data.",
+        "constraint": "Source content must pass an allowlist and figure content must satisfy safe-SVG restrictions; rejected material is marked with red Xs.",
+        "status": "Blue and teal paths carry accepted excerpt and vector content, the dark path carries checked output, and red denotes exclusion. No overlap or clipping was visible at 352px."
+      },
+      "comparison": "The reviewer independently recovered the intended claim, subject, two distinct constraints, converging assembly, checked outcome, and accepted-versus-rejected states. The reviewer noted that a dashed red spur alone could be read as rejecting a whole gate, but both gates visibly retain continuous accepted exits into the page, so the recovered status still matches the intended rejected-material branch rather than a rejected gate."
+    }
+  }
+}

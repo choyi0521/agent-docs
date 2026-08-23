@@ -1,0 +1,83 @@
+{
+  "repo_root": ".",
+  "docs_root": "docs",
+  "index_file": "_index.md",
+  "nav_key": "nav",
+  "sections": [
+    {
+      "path": "guides",
+      "role": "guide",
+      "allow_plans": false,
+      "require_references": false
+    },
+    {
+      "path": "authoring",
+      "role": "development",
+      "allow_plans": true,
+      "require_references": false
+    }
+  ],
+  "asset_roots": [
+    "_assets"
+  ],
+  "retired_roots": [],
+  "plan_anchor_prefix": "plan-docs-",
+  "source_roots": [
+    {
+      "id": "repository",
+      "path": ".",
+      "code_route": "/code/"
+    }
+  ],
+  "evidence_rules": [
+    {
+      "role": "Tests",
+      "patterns": [
+        "tests/**"
+      ]
+    },
+    {
+      "role": "Build",
+      "patterns": [
+        "*.slnx",
+        "*.props",
+        "*.json",
+        "**/*.csproj"
+      ]
+    }
+  ],
+  "build_commands": [
+    {
+      "name": "solution",
+      "cwd": ".",
+      "argv": [
+        "dotnet",
+        "build",
+        "AgentDocs.slnx",
+        "--configuration",
+        "Release"
+      ]
+    },
+    {
+      "name": "render",
+      "cwd": ".",
+      "argv": [
+        "dotnet",
+        "run",
+        "--project",
+        "src/AgentDocs.Cli",
+        "--configuration",
+        "Release",
+        "--",
+        "render",
+        "--repo",
+        ".",
+        "--config",
+        "agent-docs.json",
+        "--out",
+        "build",
+        "--check"
+      ]
+    }
+  ]
+}

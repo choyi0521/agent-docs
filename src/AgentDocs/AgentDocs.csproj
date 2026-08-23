@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <RootNamespace>AgentDocs</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Markdig" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentDocs.Tests" />
+  </ItemGroup>
+</Project>

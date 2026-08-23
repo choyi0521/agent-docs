@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" data-base="/" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Documentation">
+  <title>Documentation</title>
+  <script>
+    (function () {
+      "use strict";
+      var root = document.documentElement;
+      var base = String(root.getAttribute("data-base") || "").trim();
+      if (base && base.charAt(0) !== "/") { base = "/" + base; }
+      base = base.replace(/\/+$/, "");
+      root.setAttribute("data-base", base);
+
+      var theme = "light";
+      try {
+        var saved = localStorage.getItem("docs-theme");
+        if (saved === "dark" || saved === "light") {
+          theme = saved;
+        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          theme = "dark";
+        }
+      } catch (ignore) {}
+      root.setAttribute("data-theme", theme);
+
+      var style = document.createElement("link");
+      style.rel = "stylesheet";
+      style.href = base + "/app.css";
+      document.head.appendChild(style);
+
+      var app = document.createElement("script");
+      app.src = base + "/app.js";
+      app.async = false;
+      document.head.appendChild(app);
+    })();
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#article">Skip to content</a>
+  <div class="route-progress" id="route-progress" hidden></div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <button class="icon-button menu-button" id="menu-button" type="button"
+              aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+      <a class="brand" id="brand" href="/" data-route>Documentation</a>
+      <nav class="space-links" id="space-links" aria-label="Documentation spaces"></nav>
+      <span class="page-crumb" id="page-crumb" aria-live="polite"></span>
+      <span class="topbar-spacer"></span>
+      <button class="search-button" id="search-button" type="button" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <span>Search</span><kbd>Ctrl K</kbd>
+      </button>
+      <button class="icon-button" id="theme-button" type="button" aria-label="Use dark theme">
+        <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.2A8 8 0 0 1 8.8 4 8.3 8.3 0 1 0 20 15.2Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <button class="nav-scrim" id="nav-scrim" type="button" aria-label="Close navigation" hidden></button>
+    <aside class="sidebar" id="sidebar" aria-label="Page navigation">
+      <nav class="sidebar-spaces" id="sidebar-spaces" aria-label="Documentation spaces"></nav>
+      <nav class="page-nav" id="page-nav" aria-label="Pages"></nav>
+    </aside>
+    <main class="main" id="main">
+      <article class="prose-wrap" id="article" tabindex="-1">
+        <div class="loading-state" role="status">Loading documentation…</div>
+      </article>
+    </main>
+    <aside class="tocbar" id="tocbar" aria-label="On this page"></aside>
+  </div>
+
+  <dialog class="search-dialog" id="search-dialog" aria-labelledby="search-title">
+    <div class="search-panel">
+      <div class="search-heading">
+        <h2 id="search-title">Search documentation</h2>
+        <button class="icon-button" id="search-close" type="button" aria-label="Close search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <label class="search-field">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <span class="sr-only">Search terms</span>
+        <input id="search-input" type="search" autocomplete="off" spellcheck="false"
+               placeholder="Search titles and content">
+      </label>
+      <div class="search-results" id="search-results" role="listbox" aria-live="polite"></div>
+    </div>
+  </dialog>
+
+  <noscript><p class="noscript">JavaScript is required to browse this documentation.</p></noscript>
+</body>
+</html>

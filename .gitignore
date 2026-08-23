@@ -1,0 +1,56 @@
+# .NET
+**/bin/
+**/obj/
+*.binlog
+*.user
+*.suo
+.vs/
+
+# Documentation output
+**/build/
+**/artifacts/
+**/dist/
+**/out/
+
+# Node
+**/node_modules/
+npm-debug.log*
+
+# Python
+**/__pycache__/
+*.py[cod]
+**/.cache/
+**/.pytest_cache/
+**/.venv/
+
+# Coverage and test output
+**/coverage/
+**/coverage-*/
+**/coverage_*/
+**/.coverage*/
+**/htmlcov/
+**/lcov-report/
+**/TestResults/
+*.coverage
+*.trx
+
+# Temporary directories
+**/.tmp/
+**/.tmp-*/
+**/temp/
+**/tmp/
+
+# Local configuration and credentials
+**/.env
+**/.env.*
+!**/.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

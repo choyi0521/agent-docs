@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <IsTestProject>true</IsTestProject>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgentDocs\AgentDocs.csproj" />
+    <ProjectReference Include="..\..\examples\source\AgentDocs.Examples.csproj" />
+  </ItemGroup>
+</Project>

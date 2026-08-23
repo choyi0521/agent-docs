@@ -1,0 +1,60 @@
+{
+  "$schema": "../schemas/agent-generation.schema.json",
+  "version": 2,
+  "instructions": [
+    {
+      "id": "repository",
+      "source": "_agents/instructions/repository.md",
+      "targets": [
+        {
+          "path": "AGENTS.md",
+          "vendor": "codex"
+        },
+        {
+          "path": "CLAUDE.md",
+          "vendor": "claude"
+        }
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "id": "docs-authoring",
+      "source": "_agents/skills/docs-authoring",
+      "targets": [
+        {
+          "path": ".agents/skills/docs-authoring",
+          "vendor": "codex"
+        },
+        {
+          "path": ".claude/skills/docs-authoring",
+          "vendor": "claude"
+        }
+      ]
+    },
+    {
+      "id": "technical-figure",
+      "source": "_agents/skills/technical-figure",
+      "targets": [
+        {
+          "path": ".agents/skills/technical-figure",
+          "vendor": "codex"
+        },
+        {
+          "path": ".claude/skills/technical-figure",
+          "vendor": "claude"
+        }
+      ]
+    }
+  ],
+  "managed": {
+    "files": [
+      "AGENTS.md",
+      "CLAUDE.md"
+    ],
+    "roots": [
+      ".agents/skills",
+      ".claude/skills"
+    ]
+  }
+}

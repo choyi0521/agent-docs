@@ -1,0 +1,161 @@
+{
+  "version": 1,
+  "width": 352,
+  "height": 666,
+  "title": "Bounded documentation assembly",
+  "description": "An authored Markdown page flows down the center. A marked source region passes through an allowlist funnel on the left, and a passive vector passes through a safe SVG shield on the right. Blocked material stops at each gate. The accepted pieces join the page, pass the checked-build gate, and become a stack of static site data.",
+  "caption": "Only explicitly allowed source regions and passive SVG enter the rendered page; rejected inputs stop the checked build before its static site data is publishable.",
+  "elements": [
+    {
+      "tag": "g",
+      "attrs": { "id": "authored-page" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M86 16 H230 L266 52 V140 H86 Z", "fill": "#FFFFFF", "stroke": "#26364A", "stroke-linejoin": "round", "stroke-width": "2.5" } },
+        { "tag": "path", "attrs": { "d": "M230 16 V52 H266", "fill": "none", "stroke": "#26364A", "stroke-linejoin": "round", "stroke-width": "2.5" } },
+        { "tag": "text", "attrs": { "fill": "#172033", "font-family": "system-ui, sans-serif", "font-size": "18", "font-weight": "700", "text-anchor": "middle", "x": "176", "y": "48" }, "text": "page.md" },
+        { "tag": "rect", "attrs": { "fill": "#EAF0FF", "height": "25", "rx": "5", "stroke": "#275BD8", "stroke-width": "2", "width": "142", "x": "105", "y": "66" } },
+        { "tag": "text", "attrs": { "fill": "#173F9E", "font-family": "system-ui, sans-serif", "font-size": "16", "text-anchor": "middle", "x": "176", "y": "84" }, "text": "#snippet region" },
+        { "tag": "rect", "attrs": { "fill": "#E5F8F4", "height": "25", "rx": "5", "stroke": "#087E75", "stroke-width": "2", "width": "142", "x": "105", "y": "102" } },
+        { "tag": "text", "attrs": { "fill": "#075E58", "font-family": "system-ui, sans-serif", "font-size": "16", "text-anchor": "middle", "x": "176", "y": "120" }, "text": "figure.svg" }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "direct-render-path" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M176 140 V335", "fill": "none", "stroke": "#275BD8", "stroke-linecap": "round", "stroke-width": "4" } },
+        { "tag": "rect", "attrs": { "fill": "#FFFFFF", "height": "24", "rx": "4", "width": "66", "x": "143", "y": "148" } },
+        { "tag": "text", "attrs": { "fill": "#173F9E", "font-family": "system-ui, sans-serif", "font-size": "16", "font-weight": "700", "text-anchor": "middle", "x": "176", "y": "166" }, "text": "render" },
+        { "tag": "polygon", "attrs": { "fill": "#275BD8", "points": "168,328 176,342 184,328" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "source-input" },
+      "children": [
+        { "tag": "text", "attrs": { "fill": "#172033", "font-family": "system-ui, sans-serif", "font-size": "16", "font-weight": "700", "text-anchor": "middle", "x": "78", "y": "190" }, "text": "source file" },
+        { "tag": "path", "attrs": { "d": "M35 199 H96 L108 211 V243 H35 Z", "fill": "#F7FAFF", "stroke": "#526174", "stroke-linejoin": "round", "stroke-width": "2" } },
+        { "tag": "path", "attrs": { "d": "M96 199 V211 H108", "fill": "none", "stroke": "#526174", "stroke-width": "2" } },
+        { "tag": "line", "attrs": { "stroke": "#526174", "stroke-linecap": "round", "stroke-width": "2", "x1": "48", "x2": "91", "y1": "218", "y2": "218" } },
+        { "tag": "line", "attrs": { "stroke": "#275BD8", "stroke-linecap": "round", "stroke-width": "3", "x1": "48", "x2": "83", "y1": "229", "y2": "229" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "source-boundary" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M22 250 H134 L99 301 H57 Z", "fill": "#EAF0FF", "stroke": "#314158", "stroke-linejoin": "round", "stroke-width": "2.5" } },
+        { "tag": "text", "attrs": { "fill": "#173F9E", "font-family": "system-ui, sans-serif", "font-size": "16", "font-weight": "700", "text-anchor": "middle", "x": "78", "y": "276" }, "text": "allowlist" }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "source-extraction" },
+      "children": [
+        { "tag": "rect", "attrs": { "fill": "#FFFFFF", "height": "32", "rx": "4", "stroke": "#275BD8", "stroke-width": "2", "width": "64", "x": "46", "y": "307" } },
+        { "tag": "line", "attrs": { "stroke": "#275BD8", "stroke-linecap": "round", "stroke-width": "2.5", "x1": "57", "x2": "98", "y1": "318", "y2": "318" } },
+        { "tag": "line", "attrs": { "stroke": "#275BD8", "stroke-linecap": "round", "stroke-width": "2.5", "x1": "57", "x2": "88", "y1": "328", "y2": "328" } },
+        { "tag": "path", "attrs": { "d": "M110 323 C132 323 139 346 162 346", "fill": "none", "stroke": "#275BD8", "stroke-linecap": "round", "stroke-width": "4" } },
+        { "tag": "polygon", "attrs": { "fill": "#275BD8", "points": "151,338 164,346 151,354" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "source-rejection" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M119 274 L139 294", "fill": "none", "stroke": "#A23A35", "stroke-dasharray": "5 5", "stroke-linecap": "round", "stroke-width": "3" } },
+        { "tag": "line", "attrs": { "stroke": "#A23A35", "stroke-linecap": "round", "stroke-width": "3", "x1": "132", "x2": "146", "y1": "287", "y2": "301" } },
+        { "tag": "line", "attrs": { "stroke": "#A23A35", "stroke-linecap": "round", "stroke-width": "3", "x1": "146", "x2": "132", "y1": "287", "y2": "301" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "figure-input" },
+      "children": [
+        { "tag": "text", "attrs": { "fill": "#172033", "font-family": "system-ui, sans-serif", "font-size": "16", "font-weight": "700", "text-anchor": "middle", "x": "274", "y": "190" }, "text": "figure.svg" },
+        { "tag": "circle", "attrs": { "cx": "249", "cy": "220", "fill": "#FFFFFF", "r": "17", "stroke": "#087E75", "stroke-width": "2" } },
+        { "tag": "polygon", "attrs": { "fill": "#E5F8F4", "points": "273,238 291,202 309,238", "stroke": "#087E75", "stroke-linejoin": "round", "stroke-width": "2" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "figure-boundary" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M216 250 H332 V275 C332 301 308 320 274 329 C240 320 216 301 216 275 Z", "fill": "#E5F8F4", "stroke": "#314158", "stroke-linejoin": "round", "stroke-width": "2.5" } },
+        { "tag": "text", "attrs": { "fill": "#075E58", "font-family": "system-ui, sans-serif", "font-size": "16", "font-weight": "700", "text-anchor": "middle", "x": "274", "y": "278" }, "text": "safe SVG" }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "figure-validation" },
+      "children": [
+        { "tag": "polygon", "attrs": { "fill": "#FFFFFF", "points": "264,314 274,294 284,314", "stroke": "#087E75", "stroke-linejoin": "round", "stroke-width": "2" } },
+        { "tag": "path", "attrs": { "d": "M259 323 C239 323 219 346 190 346", "fill": "none", "stroke": "#087E75", "stroke-linecap": "round", "stroke-width": "4" } },
+        { "tag": "polygon", "attrs": { "fill": "#087E75", "points": "201,338 188,346 201,354" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "figure-rejection" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M324 273 L341 290", "fill": "none", "stroke": "#A23A35", "stroke-dasharray": "5 5", "stroke-linecap": "round", "stroke-width": "3" } },
+        { "tag": "line", "attrs": { "stroke": "#A23A35", "stroke-linecap": "round", "stroke-width": "3", "x1": "333", "x2": "347", "y1": "283", "y2": "297" } },
+        { "tag": "line", "attrs": { "stroke": "#A23A35", "stroke-linecap": "round", "stroke-width": "3", "x1": "347", "x2": "333", "y1": "283", "y2": "297" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "composition-point" },
+      "children": [
+        { "tag": "circle", "attrs": { "cx": "176", "cy": "346", "fill": "#172033", "r": "12" } },
+        { "tag": "path", "attrs": { "d": "M176 358 V373", "fill": "none", "stroke": "#172033", "stroke-linecap": "round", "stroke-width": "4" } },
+        { "tag": "polygon", "attrs": { "fill": "#172033", "points": "168,368 176,380 184,368" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "rendered-page" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M80 380 H232 L270 418 V518 H80 Z", "fill": "#F7FAFF", "stroke": "#26364A", "stroke-linejoin": "round", "stroke-width": "2.5" } },
+        { "tag": "path", "attrs": { "d": "M232 380 V418 H270", "fill": "none", "stroke": "#26364A", "stroke-linejoin": "round", "stroke-width": "2.5" } },
+        { "tag": "text", "attrs": { "fill": "#172033", "font-family": "system-ui, sans-serif", "font-size": "18", "font-weight": "700", "text-anchor": "middle", "x": "170", "y": "415" }, "text": "rendered page" },
+        { "tag": "rect", "attrs": { "fill": "#EAF0FF", "height": "51", "rx": "5", "stroke": "#275BD8", "stroke-width": "2", "width": "68", "x": "101", "y": "437" } },
+        { "tag": "line", "attrs": { "stroke": "#275BD8", "stroke-linecap": "round", "stroke-width": "2.5", "x1": "113", "x2": "157", "y1": "452", "y2": "452" } },
+        { "tag": "line", "attrs": { "stroke": "#275BD8", "stroke-linecap": "round", "stroke-width": "2.5", "x1": "113", "x2": "146", "y1": "463", "y2": "463" } },
+        { "tag": "line", "attrs": { "stroke": "#275BD8", "stroke-linecap": "round", "stroke-width": "2.5", "x1": "113", "x2": "152", "y1": "474", "y2": "474" } },
+        { "tag": "circle", "attrs": { "cx": "207", "cy": "461", "fill": "#FFFFFF", "r": "17", "stroke": "#087E75", "stroke-width": "2" } },
+        { "tag": "polygon", "attrs": { "fill": "#E5F8F4", "points": "220,479 238,443 256,479", "stroke": "#087E75", "stroke-linejoin": "round", "stroke-width": "2" } },
+        { "tag": "text", "attrs": { "fill": "#173F9E", "font-family": "system-ui, sans-serif", "font-size": "16", "text-anchor": "middle", "x": "135", "y": "508" }, "text": "excerpt" },
+        { "tag": "text", "attrs": { "fill": "#075E58", "font-family": "system-ui, sans-serif", "font-size": "16", "text-anchor": "middle", "x": "225", "y": "508" }, "text": "vector" }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "checked-build-gate" },
+      "children": [
+        { "tag": "line", "attrs": { "stroke": "#314158", "stroke-linecap": "round", "stroke-width": "4", "x1": "112", "x2": "162", "y1": "550", "y2": "550" } },
+        { "tag": "line", "attrs": { "stroke": "#314158", "stroke-linecap": "round", "stroke-width": "4", "x1": "190", "x2": "240", "y1": "550", "y2": "550" } },
+        { "tag": "text", "attrs": { "fill": "#314158", "font-family": "system-ui, sans-serif", "font-size": "16", "font-weight": "700", "text-anchor": "start", "x": "248", "y": "555" }, "text": "check" }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "publication-path" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M176 518 V575", "fill": "none", "stroke": "#172033", "stroke-linecap": "round", "stroke-width": "4" } },
+        { "tag": "polygon", "attrs": { "fill": "#172033", "points": "168,566 176,580 184,566" } }
+      ]
+    },
+    {
+      "tag": "g",
+      "attrs": { "id": "static-output" },
+      "children": [
+        { "tag": "path", "attrs": { "d": "M104 574 H244 L258 588 V630 H104 Z", "fill": "#D8E1EF", "stroke": "#526174", "stroke-linejoin": "round", "stroke-width": "2" } },
+        { "tag": "path", "attrs": { "d": "M92 584 H232 L246 598 V642 H92 Z", "fill": "#E5F8F4", "stroke": "#526174", "stroke-linejoin": "round", "stroke-width": "2" } },
+        { "tag": "path", "attrs": { "d": "M80 594 H220 L234 608 V654 H80 Z", "fill": "#FFFFFF", "stroke": "#26364A", "stroke-linejoin": "round", "stroke-width": "2.5" } },
+        { "tag": "path", "attrs": { "d": "M220 594 V608 H234", "fill": "none", "stroke": "#26364A", "stroke-width": "2.5" } },
+        { "tag": "text", "attrs": { "fill": "#172033", "font-family": "system-ui, sans-serif", "font-size": "18", "font-weight": "700", "text-anchor": "middle", "x": "157", "y": "628" }, "text": "static site data" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "$schema": "../schemas/agent-publication.schema.json",
+  "version": 2,
+  "instructions": [
+    "repository"
+  ],
+  "skills": [
+    "docs-authoring",
+    "technical-figure"
+  ]
+}

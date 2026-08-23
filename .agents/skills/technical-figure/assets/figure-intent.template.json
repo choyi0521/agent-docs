@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "id": "replace-with-stable-figure-id",
+  "question": "What reader question does this figure answer?",
+  "claim": "State the single source-backed conclusion as a declarative sentence.",
+  "subject": "Name the concrete entity the reader follows or compares.",
+  "threeSecondTakeaway": "State what a reader should recover before reading detail.",
+  "caption": "State the conclusion without narrating every visible element.",
+  "decomposition": {
+    "subject": "The entity the reader follows or compares.",
+    "action": "The visible action or relationship.",
+    "constraint": "The boundary, rule, or condition that changes the outcome.",
+    "state": "The current, partial, absent, planned, or schematic status.",
+    "outcome": "The terminal result the composition makes visible."
+  },
+  "labelFreeCompositions": [
+    {
+      "id": "candidate-a",
+      "model": "Describe the first label-free spatial model."
+    },
+    {
+      "id": "candidate-b",
+      "model": "Describe a materially different label-free spatial model."
+    }
+  ],
+  "selectedComposition": {
+    "id": "candidate-a",
+    "reason": "Explain why its geometry exposes the claim with less interpretation."
+  },
+  "readingOrder": [
+    "primary-subject",
+    "visible-action",
+    "real-constraint",
+    "terminal-state"
+  ],
+  "representativeTrace": {
+    "status": "pending",
+    "entity": "For pass, name the concrete entity being traced.",
+    "steps": [
+      "primary-subject",
+      "visible-action",
+      "terminal-state"
+    ],
+    "reason": "For not-applicable, replace this with the reason no trace applies."
+  },
+  "elements": [
+    {
+      "id": "primary-subject",
+      "svgId": "primary-subject",
+      "role": "subject",
+      "meaning": "The source-backed fact represented by the subject.",
+      "encoding": "The chosen position, form, size, line, color, repetition, or whitespace.",
+      "whyThisEncoding": "Why this channel explains the fact more directly than a label or generic box.",
+      "evidence": [
+        "replace/with/source.ext#exact-locator"
+      ],
+      "removalLoss": "The meaning or accessibility cue lost if this element is removed."
+    },
+    {
+      "id": "visible-action",
+      "svgId": "visible-action",
+      "role": "action",
+      "meaning": "The one source-backed action carried by this connector or transformation.",
+      "verb": "replace-with-one-verb",
+      "encoding": "The geometry, direction, endpoint, and line style that expose the action.",
+      "whyThisEncoding": "Why this encoding cannot be mistaken for another relation in this figure.",
+      "evidence": [
+        "replace/with/source.ext#exact-locator"
+      ],
+      "removalLoss": "The action the reader could no longer recover."
+    },
+    {
+      "id": "real-constraint",
+      "svgId": "real-constraint",
+      "role": "boundary",
+      "meaning": "The actual ownership, scope, isolation, validation, or spatial boundary.",
+      "encoding": "The enclosure, gate, gap, or separation used to expose the constraint.",
+      "whyThisEncoding": "Why the boundary exists visually and what crossing it means.",
+      "evidence": [
+        "replace/with/source.ext#exact-locator"
+      ],
+      "removalLoss": "The constraint that would disappear."
+    },
+    {
+      "id": "terminal-state",
+      "svgId": "terminal-state",
+      "role": "state",
+      "meaning": "The final source-backed state or contrast.",
+      "encoding": "The terminal, retained state, before/after view, or other visible result.",
+      "whyThisEncoding": "Why the result is recognizable without reading surrounding prose.",
+      "evidence": [
+        "replace/with/source.ext#exact-locator"
+      ],
+      "removalLoss": "The conclusion the figure would no longer state."
+    }
+  ],
+  "review": {
+    "threeSecond": {
+      "status": "pending",
+      "observation": "Describe what appeared first at the real display size."
+    },
+    "labelSwap": {
+      "status": "pending",
+      "observation": "Explain why labels cannot turn this into an unrelated figure."
+    },
+    "labelOff": {
+      "status": "pending",
+      "observation": "Describe the relation and reading order recovered without labels."
+    },
+    "pointAndExplain": {
+      "status": "pending",
+      "observation": "Confirm every visible logical element has a specific intent entry."
+    },
+    "ablation": {
+      "status": "pending",
+      "observation": "Record what meaning or accessibility cue each retained element preserves."
+    },
+    "counterfactual": {
+      "status": "pending",
+      "observation": "State what geometry would change if the central fact were reversed."
+    },
+    "arrowVerb": {
+      "status": "pending",
+      "observation": "For pass, confirm every connector carries one verb.",
+      "reason": "For not-applicable, explain why the figure has no connectors."
+    },
+    "boundary": {
+      "status": "pending",
+      "observation": "For pass, confirm every enclosure or separation is real.",
+      "reason": "For not-applicable, explain why the figure has no boundaries."
+    },
+    "trace": {
+      "status": "pending",
+      "observation": "For pass, record the entity and visible path followed.",
+      "reason": "For not-applicable, explain why the figure has no flow or change."
+    },
+    "thumbnail": {
+      "status": "pending",
+      "observation": "Describe the subject, hierarchy, and direction retained at reduced size."
+    },
+    "articleTypography": {
+      "status": "pending",
+      "observation": "Record the normal host article width, final rendered ordinary and smallest label sizes, visible type-size count, and whether any wider view preserves authored scale with scrolling."
+    },
+    "grayscale": {
+      "status": "pending",
+      "observation": "Describe the non-color channels that preserve every distinction."
+    },
+    "proseDependency": {
+      "status": "pending",
+      "observation": "State what the figure communicates without surrounding prose."
+    },
+    "sourceTruth": {
+      "status": "pending",
+      "observation": "Confirm each solid path, boundary, quantity, and state against evidence."
+    },
+    "blindReview": {
+      "status": "pending",
+      "reviewerLabel": "Use a non-identifying label such as independent-reviewer; do not record names, emails, account ids, chat ids, or private transcript links.",
+      "artifact": "Record a repository-relative artifact and display size; never use a local absolute path, private URL, or transcript link.",
+      "prompt": "Ask for the conclusion, subject, action, constraint, and status or lack of one without leading the reviewer.",
+      "recovered": {
+        "claim": "Record the reviewer's recovered claim verbatim or as a faithful summary.",
+        "subject": "Record the recovered subject.",
+        "action": "Record the recovered action.",
+        "constraint": "Record the recovered constraint.",
+        "status": "Record the recovered status distinction or why none applies."
+      },
+      "comparison": "Compare the recovered reading with the intended ledger and explain the pass decision."
+    }
+  }
+}

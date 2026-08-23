@@ -1,0 +1,5 @@
+{
+  "display_name": "Design a Technical Figure",
+  "short_description": "Turn source-backed claims into intentional visual explanations",
+  "default_prompt": "Use $technical-figure to turn this documentation claim into a source-backed visual explanation. Decompose the claim, choose a semantic form before a tool, give every logical element an explicit intent, build canonical outputs through build.py, inspect the rendered result, and obtain an independent blind review before accepting the figure."
+}

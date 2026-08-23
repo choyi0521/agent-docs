@@ -1,0 +1,14 @@
+{
+  "name": "docs-spa-styles",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tailwindcss -c tailwind.config.js -i app.src.css -o ../web/app.css --minify",
+    "test": "node smoke.test.cjs && node generated.test.cjs",
+    "test:generated": "node generated.test.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0",
+    "tailwindcss": "3.4.17"
+  }
+}

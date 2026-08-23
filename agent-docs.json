@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "title": "Agent Docs",
+  "spaces": [
+    {
+      "id": "",
+      "label": "Guide",
+      "docsDir": "docs",
+      "curated": true,
+      "showInMenu": true,
+      "sourceRoot": ".",
+      "enableSnippets": true,
+      "publishCode": true,
+      "sourceTrees": [
+        "examples/source"
+      ],
+      "sourceExtensions": [
+        ".cs"
+      ],
+      "excludedSourcePaths": [],
+      "browsableRootFiles": []
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-boundary:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Public-boundary tests
+        run: python -B -m unittest discover -s tools/tests -p "test_check_public_boundary.py" -v
+      - name: Inspect complete candidate tree
+        run: python -B tools/check_public_boundary.py
+
+  agent-workflows:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Compile workflow scripts
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/agent-docs-pycache
+        run: |
+          python -B -m py_compile \
+            _agents/skills/docs-authoring/scripts/audit_docs.py \
+            _agents/skills/technical-figure/scripts/audit_figures.py \
+            _agents/skills/technical-figure/scripts/figure_tools.py
+      - name: Agent-instruction tests
+        run: python -B -m unittest discover -s tools/tests -p "test_*agent_instructions.py" -v
+      - name: Documentation-authoring skill tests
+        run: python -B -m unittest discover -s _agents/skills/docs-authoring/scripts -p "test_*.py" -v
+      - name: Technical-figure skill tests
+        run: python -B -m unittest discover -s _agents/skills/technical-figure/scripts -p "test_*.py" -v
+      - name: Neutral technical-figure audit
+        run: >-
+          python -B _agents/skills/technical-figure/scripts/audit_figures.py
+          --repo-root . --bundle docs/_assets/figures/document-flow --article-width-px 704
+      - name: Neutral documentation authoring audit
+        run: >-
+          python -B _agents/skills/docs-authoring/scripts/audit_docs.py
+          --config docs-audit.json --repo-root . --check
+      - name: Generated agent surfaces
+        run: |
+          python -B tools/sync_agent_instructions.py --check
+          python -B tools/check_agent_instructions.py
+
+  dotnet:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore AgentDocs.slnx
+      - name: Build
+        run: dotnet build AgentDocs.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test AgentDocs.slnx --configuration Release --no-build
+      - name: Validate neutral documentation
+        if: runner.os == 'Linux'
+        run: |
+          dotnet run --project src/AgentDocs.Cli --configuration Release --no-build -- render --repo . --config agent-docs.json --out build --check
+          cmp THIRD-PARTY-NOTICES.md build/THIRD-PARTY-NOTICES.md
+          cmp third_party_licenses/Markdig-BSD-2-Clause.txt build/third_party_licenses/Markdig-BSD-2-Clause.txt
+          cmp third_party_licenses/Tailwind-CSS-MIT.txt build/third_party_licenses/Tailwind-CSS-MIT.txt
+          cmp third_party_licenses/Tailwind-Preflight-MIT.txt build/third_party_licenses/Tailwind-Preflight-MIT.txt
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: runner.os == 'Linux'
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: styles/package-lock.json
+      - name: Install generated-reader test dependencies
+        if: runner.os == 'Linux'
+        run: npm ci --prefix styles
+      - name: Test generated reader output
+        if: runner.os == 'Linux'
+        run: npm run test:generated --prefix styles
+
+  web-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: styles/package-lock.json
+      - name: Install style dependencies
+        run: npm ci --prefix styles
+      - name: Verify distributed stylesheet notices
+        run: |
+          cmp styles/node_modules/tailwindcss/LICENSE third_party_licenses/Tailwind-CSS-MIT.txt
+          cmp styles/node_modules/tailwindcss/src/css/LICENSE third_party_licenses/Tailwind-Preflight-MIT.txt
+      - name: Rebuild stylesheet
+        run: npm run build --prefix styles
+      - name: Reader and style smoke tests
+        run: npm test --prefix styles
+      - name: Generated stylesheet is current
+        run: |
+          git diff --exit-code -- web/app.css
+          test -z "$(git status --porcelain -- web/app.css)"

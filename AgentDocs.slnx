@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentDocs/AgentDocs.csproj" />
+    <Project Path="src/AgentDocs.Cli/AgentDocs.Cli.csproj" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/source/AgentDocs.Examples.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentDocs.Tests/AgentDocs.Tests.csproj" />
+  </Folder>
+</Solution>

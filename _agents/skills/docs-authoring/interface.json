@@ -1,0 +1,5 @@
+{
+  "display_name": "Author Product Documentation",
+  "short_description": "Author evidence-backed public product documentation",
+  "default_prompt": "Use $docs-authoring to author or review public product documentation with source-backed claims, clear navigation, and configurable validation."
+}
