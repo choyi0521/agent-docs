@@ -13,6 +13,16 @@ public sealed class ReviewCommentServerTests
     private const string Endpoint = "/__agent-docs/review/comments";
 
     [Fact]
+    public void Review_json_uses_canonical_lf_and_unescaped_common_unicode()
+    {
+        string json = Encoding.UTF8.GetString(ReviewCommentStore.SerializeResponse(
+            new { message = "한글 <>&" }));
+
+        Assert.Equal("{\n  \"message\": \"한글 <>&\"\n}", json);
+        Assert.DoesNotContain('\r', json);
+    }
+
+    [Fact]
     public async Task Mounted_review_api_persists_filters_replies_and_resolves_comments()
     {
         using TempRepository repo = BuildRepository();

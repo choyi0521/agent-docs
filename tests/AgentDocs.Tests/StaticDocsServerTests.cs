@@ -50,6 +50,10 @@ public sealed class StaticDocsServerTests
             Assert.DoesNotContain("data-base=\"/manual\"", shellText,
                 StringComparison.Ordinal);
             Assert.Contains("preview shell", shellText, StringComparison.Ordinal);
+            Assert.Equal("frame-ancestors 'none'",
+                Assert.Single(shell.Headers.GetValues("Content-Security-Policy")));
+            Assert.Equal("DENY",
+                Assert.Single(shell.Headers.GetValues("X-Frame-Options")));
 
             using HttpResponseMessage siteIndex = await client.GetAsync(
                 new Uri(mount.AbsoluteUri + "/index.json"), timeout.Token);
@@ -71,6 +75,10 @@ public sealed class StaticDocsServerTests
             Assert.Contains("preview shell",
                 await spa.Content.ReadAsStringAsync(timeout.Token),
                 StringComparison.Ordinal);
+            Assert.Equal("frame-ancestors 'none'",
+                Assert.Single(spa.Headers.GetValues("Content-Security-Policy")));
+            Assert.Equal("DENY",
+                Assert.Single(spa.Headers.GetValues("X-Frame-Options")));
 
             using HttpResponseMessage missingCandidate = await client.GetAsync(
                 new Uri(mount.AbsoluteUri + "/content/section.json"), timeout.Token);
@@ -131,6 +139,23 @@ public sealed class StaticDocsServerTests
             using HttpResponseMessage outsideMount = await client.GetAsync(
                 new Uri($"http://127.0.0.1:{port}/index.json"), timeout.Token);
             Assert.Equal(HttpStatusCode.NotFound, outsideMount.StatusCode);
+
+            using (HttpRequestMessage rebound = new(HttpMethod.Get,
+                       new Uri(mount.AbsoluteUri + "/")))
+            {
+                rebound.Headers.Host = $"docs.attacker.test:{port}";
+                using HttpResponseMessage rejected = await client.SendAsync(
+                    rebound, timeout.Token);
+                Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            }
+            using (HttpRequestMessage wrongPort = new(HttpMethod.Get,
+                       new Uri(mount.AbsoluteUri + "/__agent-docs/review/comments")))
+            {
+                wrongPort.Headers.Host = $"127.0.0.1:{port + 1}";
+                using HttpResponseMessage rejected = await client.SendAsync(
+                    wrongPort, timeout.Token);
+                Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            }
 
             string traversal = await SendRawRequestAsync(
                 port, "/preview/%2e%2e/index.json", timeout.Token);
@@ -207,6 +232,44 @@ public sealed class StaticDocsServerTests
     public void Base_path_is_normalized_for_safe_mounts(string configured, string expected)
     {
         Assert.Equal(expected, StaticDocsServer.NormalizeBasePath(configured));
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1:4173", "http://127.0.0.1:4173")]
+    public void Loopback_authority_accepts_ip_literals_and_exact_port(
+        string authority, string expectedOrigin)
+    {
+        Assert.True(StaticDocsServer.TryNormalizeLoopbackAuthority(
+            authority, 4173, out string origin));
+        Assert.Equal(expectedOrigin, origin);
+    }
+
+    [Fact]
+    public void Loopback_authority_accepts_the_ipv6_loopback_literal()
+    {
+        string authority = "[" + "::1" + "]:4173";
+        string expectedOrigin = "http://" + authority;
+
+        Assert.True(StaticDocsServer.TryNormalizeLoopbackAuthority(
+            authority, 4173, out string origin));
+        Assert.Equal(expectedOrigin, origin);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("localhost:4173")]
+    [InlineData("docs.attacker.test:4173")]
+    [InlineData("127.0.0.1:4174")]
+    [InlineData("127.0.0.1:4173/path")]
+    [InlineData("user@127.0.0.1:4173")]
+    [InlineData(" 127.0.0.1:4173")]
+    public void Loopback_authority_rejects_names_malformed_values_and_wrong_ports(
+        string? authority)
+    {
+        Assert.False(StaticDocsServer.TryNormalizeLoopbackAuthority(
+            authority, 4173, out string origin));
+        Assert.Empty(origin);
     }
 
     private static int ReserveLoopbackPort()

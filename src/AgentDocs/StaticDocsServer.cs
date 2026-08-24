@@ -88,8 +88,8 @@ public static class StaticDocsServer
                 {
                     break;
                 }
-                await HandleAsync(request, output, mount, reviewStore,
-                                  $"http://127.0.0.1:{port}", cancellationToken)
+                await HandleAsync(request, output, mount, reviewStore, port,
+                                  cancellationToken)
                     .ConfigureAwait(false);
             }
         }
@@ -131,11 +131,19 @@ public static class StaticDocsServer
 
     private static async Task HandleAsync(
         HttpListenerContext context, string output, string mount,
-        ReviewCommentStore? reviewStore, string expectedOrigin,
+        ReviewCommentStore? reviewStore, int expectedPort,
         CancellationToken cancellationToken)
     {
         try
         {
+            if (!TryValidateRequestOrigin(context.Request, expectedPort,
+                                          out string expectedOrigin))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                context.Response.Headers[HttpResponseHeader.CacheControl] = "no-store";
+                context.Response.Close();
+                return;
+            }
             string rawTarget = context.Request.RawUrl ?? "/";
             int query = rawTarget.IndexOf('?');
             string path = Uri.UnescapeDataString(query < 0 ? rawTarget : rawTarget[..query]);
@@ -212,6 +220,41 @@ public static class StaticDocsServer
             }
             catch (HttpListenerException) { }
         }
+    }
+
+    private static bool TryValidateRequestOrigin(
+        HttpListenerRequest request, int expectedPort, out string origin)
+    {
+        origin = "";
+        string[]? authorities = request.Headers.GetValues("Host");
+        if (authorities is null || authorities.Length != 1
+            || request.LocalEndPoint is null || request.RemoteEndPoint is null
+            || !IPAddress.IsLoopback(request.LocalEndPoint.Address)
+            || !IPAddress.IsLoopback(request.RemoteEndPoint.Address))
+            return false;
+        return TryNormalizeLoopbackAuthority(authorities[0], expectedPort, out origin);
+    }
+
+    internal static bool TryNormalizeLoopbackAuthority(
+        string? authority, int expectedPort, out string origin)
+    {
+        origin = "";
+        if (string.IsNullOrEmpty(authority) || authority != authority.Trim()
+            || authority.Any(character => char.IsControl(character)
+                                           || char.IsWhiteSpace(character))
+            || authority.IndexOfAny(['/', '\\', '@', '?', '#']) >= 0
+            || !Uri.TryCreate("http://" + authority + "/", UriKind.Absolute, out Uri? uri)
+            || uri.Scheme != Uri.UriSchemeHttp || uri.Port != expectedPort
+            || uri.AbsolutePath != "/" || uri.Query.Length != 0 || uri.Fragment.Length != 0
+            || uri.UserInfo.Length != 0)
+            return false;
+        string host = uri.Host.Trim('[', ']');
+        if (!IPAddress.TryParse(host, out IPAddress? address)
+            || !IPAddress.IsLoopback(address))
+            return false;
+        origin = new UriBuilder(Uri.UriSchemeHttp, address.ToString(), expectedPort)
+            .Uri.GetLeftPart(UriPartial.Authority);
+        return true;
     }
 
     private static async Task HandleReviewAsync(
@@ -467,6 +510,9 @@ public static class StaticDocsServer
 
     private static async Task SendFileAsync(HttpListenerContext context, string path, string mount)
     {
+        if (string.Equals(Path.GetExtension(path), ".html",
+                          StringComparison.OrdinalIgnoreCase))
+            AddFrameProtectionHeaders(context.Response);
         if (Path.GetFileName(path) == "index.html")
         {
             string html = TextUtilities.ReadText(path);
@@ -487,6 +533,12 @@ public static class StaticDocsServer
             await stream.CopyToAsync(context.Response.OutputStream).ConfigureAwait(false);
         }
         context.Response.Close();
+    }
+
+    private static void AddFrameProtectionHeaders(HttpListenerResponse response)
+    {
+        response.Headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+        response.Headers["X-Frame-Options"] = "DENY";
     }
 
     private static async Task SendAsync(HttpListenerContext context, string text, string contentType)
