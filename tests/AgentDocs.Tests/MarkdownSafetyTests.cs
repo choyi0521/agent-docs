@@ -103,6 +103,26 @@ public sealed class MarkdownSafetyTests
             StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("/guides/getting-started")]
+    [InlineData("/authoring/navigation#durable-links")]
+    [InlineData("/code/examples/source/GreetingFormatter.cs")]
+    public void Site_root_links_are_preserved_as_internal_routes_on_every_platform(string target)
+    {
+        using TempRepository repo = new();
+        repo.WriteConfiguration();
+        string markdown = $"[site route]({target})\n";
+        string source = repo.Write("docs/links.md", markdown);
+        RenderDiagnostics diagnostics = new();
+        MarkdownPageRenderer renderer = new(LoadSpace(repo), diagnostics);
+
+        MarkdownRenderResult rendered = renderer.Render(markdown, source, "/links");
+
+        Assert.Empty(diagnostics.BrokenLinks);
+        Assert.Contains($"href=\"{target}\"", rendered.Html, StringComparison.Ordinal);
+        Assert.Contains(target, rendered.Anchors.Links);
+    }
+
     [Fact]
     public void Renderer_rejects_a_source_file_outside_the_documentation_root()
     {

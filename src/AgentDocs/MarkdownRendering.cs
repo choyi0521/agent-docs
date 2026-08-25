@@ -266,16 +266,16 @@ public sealed partial class MarkdownPageRenderer
             context.Anchors.Links.Add(value);
             return value;
         }
+        if (value.StartsWith('/'))
+        {
+            context.Anchors.Links.Add(value);
+            return value;
+        }
         if (Uri.TryCreate(value, UriKind.Absolute, out Uri? absolute))
         {
             if (absolute.Scheme is "http" or "https" or "mailto")
                 return value;
             return Broken(value, context, "unsupported link scheme");
-        }
-        if (value.StartsWith('/'))
-        {
-            context.Anchors.Links.Add(value);
-            return value;
         }
 
         int marker = value.IndexOfAny(['#', '?']);
