@@ -146,15 +146,15 @@ public sealed class StaticDocsServerTests
                 rebound.Headers.Host = $"docs.attacker.test:{port}";
                 using HttpResponseMessage rejected = await client.SendAsync(
                     rebound, timeout.Token);
-                Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+                AssertRejectedHostAuthority(rejected.StatusCode);
             }
             using (HttpRequestMessage wrongPort = new(HttpMethod.Get,
-                       new Uri(mount.AbsoluteUri + "/__agent-docs/review/comments")))
+                       new Uri(mount.AbsoluteUri + "/")))
             {
                 wrongPort.Headers.Host = $"127.0.0.1:{port + 1}";
                 using HttpResponseMessage rejected = await client.SendAsync(
                     wrongPort, timeout.Token);
-                Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+                AssertRejectedHostAuthority(rejected.StatusCode);
             }
 
             string traversal = await SendRawRequestAsync(
@@ -359,5 +359,13 @@ public sealed class StaticDocsServerTests
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
         }
+    }
+
+    private static void AssertRejectedHostAuthority(HttpStatusCode statusCode)
+    {
+        // HttpListener may reject a Host/prefix mismatch before producing a context.
+        // Windows reaches our validator (400); Unix can reject at the listener layer (404).
+        Assert.True(statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+            $"Expected the invalid Host authority to be rejected, but received {(int)statusCode} ({statusCode}).");
     }
 }

@@ -310,6 +310,22 @@ public sealed class ReviewCommentServerTests
     }
 
     [Fact]
+    public async Task Lock_path_directory_fails_closed_without_contention_retry()
+    {
+        using TempRepository repo = BuildRepository();
+        Directory.CreateDirectory(Path.Combine(
+            repo.Root, ".agent-docs", ".review-comments.json.lock"));
+        ReviewCommentStore store = ReviewCommentStore.Create(repo.Root, null, repo.Output);
+        Stopwatch elapsed = Stopwatch.StartNew();
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.CreateAsync("/", null, null, "Comment"));
+
+        Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(1),
+            $"invalid lock path was retried for {elapsed.Elapsed}");
+    }
+
+    [Fact]
     public async Task Python_skill_lock_blocks_server_mutation_without_changing_store()
     {
         using TempRepository repo = BuildRepository();

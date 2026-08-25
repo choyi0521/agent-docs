@@ -343,28 +343,50 @@ internal sealed class ReviewCommentStore
     {
         string parent = EnsureDataDirectory();
         string lockPath = Path.Combine(parent, "." + Path.GetFileName(dataPath) + ".lock");
-        PathSafety.EnsureNoReparse(repositoryRoot, lockPath, "review write lock");
-        bool existed = File.Exists(lockPath);
-        FileStream stream = new(
-            lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite,
-            bufferSize: 256, FileOptions.Asynchronous | FileOptions.WriteThrough);
-        try
-        {
-            PathSafety.EnsureNoReparse(repositoryRoot, lockPath, "review write lock");
-            if (!existed && !OperatingSystem.IsWindows())
-                File.SetUnixFileMode(
-                    lockPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-        }
-        catch
-        {
-            stream.Dispose();
-            throw;
-        }
-
         Stopwatch waiting = Stopwatch.StartNew();
         while (true)
         {
-            if (TryAcquireFileLock(stream))
+            PathSafety.EnsureNoReparse(repositoryRoot, lockPath, "review write lock");
+            if (Directory.Exists(lockPath))
+                throw new InvalidDataException("review write lock must be a regular file");
+            bool existed = File.Exists(lockPath);
+            FileStream stream;
+            try
+            {
+                stream = new FileStream(
+                    lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite,
+                    bufferSize: 256, FileOptions.Asynchronous | FileOptions.WriteThrough);
+            }
+            catch (IOException exception) when (!OperatingSystem.IsWindows()
+                                                && IsLockOpenContention(exception))
+            {
+                await WaitForWriteLockAsync(waiting).ConfigureAwait(false);
+                continue;
+            }
+            try
+            {
+                PathSafety.EnsureNoReparse(repositoryRoot, lockPath, "review write lock");
+                if (!existed && !OperatingSystem.IsWindows())
+                    File.SetUnixFileMode(
+                        lockPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            catch
+            {
+                stream.Dispose();
+                throw;
+            }
+
+            bool acquired;
+            try
+            {
+                acquired = TryAcquireFileLock(stream);
+            }
+            catch
+            {
+                stream.Dispose();
+                throw;
+            }
+            if (acquired)
             {
                 try
                 {
@@ -384,14 +406,26 @@ internal sealed class ReviewCommentStore
                     throw;
                 }
             }
-            if (waiting.Elapsed >= LockWait)
-            {
-                stream.Dispose();
-                throw new ReviewApiException(409,
-                    "review data is locked by another writer; retry shortly");
-            }
-            await Task.Delay(LockRetry).ConfigureAwait(false);
+            stream.Dispose();
+            await WaitForWriteLockAsync(waiting).ConfigureAwait(false);
         }
+    }
+
+    private static async Task WaitForWriteLockAsync(Stopwatch waiting)
+    {
+        TimeSpan remaining = LockWait - waiting.Elapsed;
+        if (remaining <= TimeSpan.Zero)
+            throw new ReviewApiException(409,
+                "review data is locked by another writer; retry shortly");
+        await Task.Delay(remaining < LockRetry ? remaining : LockRetry).ConfigureAwait(false);
+    }
+
+    private static bool IsLockOpenContention(IOException exception)
+    {
+        int nativeCode = exception.HResult & 0xffff;
+        // FileStream's implicit shared flock reports EWOULDBLOCK as 11 on
+        // Linux and 35 on BSD-derived platforms, including macOS.
+        return nativeCode is 11 or 35;
     }
 
     private static bool TryAcquireFileLock(FileStream stream)
