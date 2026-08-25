@@ -22,18 +22,25 @@
       reviewButton: document.getElementById("review-button"),
       reviewClearSelection: document.getElementById("review-clear-selection"),
       reviewClose: document.getElementById("review-close"),
+      reviewCompose: document.getElementById("review-compose"),
+      reviewComposeCancel: document.getElementById("review-compose-cancel"),
+      reviewComposeClose: document.getElementById("review-compose-close"),
       reviewCount: document.getElementById("review-count"),
       reviewForm: document.getElementById("review-form"),
       reviewFormStatus: document.getElementById("review-form-status"),
       reviewList: document.getElementById("review-list"),
+      reviewLiveStatus: document.getElementById("review-live-status"),
+      reviewPageComment: document.getElementById("review-page-comment"),
       reviewPanel: document.getElementById("review-panel"),
+      reviewPanelBody: document.querySelector("#review-panel .review-panel-body"),
+      reviewPanelStatus: document.getElementById("review-panel-status"),
       reviewRefresh: document.getElementById("review-refresh"),
       reviewScrim: document.getElementById("review-scrim"),
       reviewSelection: document.getElementById("review-selection"),
+      reviewSelectionAction: document.getElementById("review-selection-action"),
       reviewSelectionAnchor: document.getElementById("review-selection-anchor"),
       reviewSelectionText: document.getElementById("review-selection-text"),
       reviewSubmit: document.getElementById("review-submit"),
-      reviewUseSelection: document.getElementById("review-use-selection"),
       scrim: document.getElementById("nav-scrim"),
       searchButton: document.getElementById("search-button"),
       searchClose: document.getElementById("search-close"),
@@ -65,12 +72,31 @@
       progressTimer: 0,
       reviewAvailable: false,
       reviewComments: [],
+      reviewActionBox: null,
+      reviewComposeReturnFocus: null,
       reviewController: null,
       reviewContext: null,
+      reviewDraftRoute: "",
+      reviewDraftSequence: 0,
+      reviewDraftToken: 0,
+      reviewDrafts: new Map(),
+      reviewPendingContext: null,
+      reviewPendingRequestNumber: 0,
+      reviewPendingRoute: "",
+      reviewKeepCachedSelection: false,
       reviewRequestNumber: 0,
       reviewReturnFocus: null,
+      reviewSelectionFrame: 0,
+      reviewPositionFrame: 0,
+      reviewSelectionRange: null,
+      reviewUseDrawer: false,
     };
     var codeTextByPage = new WeakMap();
+    var reviewComposeHome = {
+      parent: elements.reviewCompose && elements.reviewCompose.parentNode,
+      next: elements.reviewCompose && elements.reviewCompose.nextSibling,
+    };
+    var reviewComposeResizeObserver = null;
 
     if ("scrollRestoration" in history) { history.scrollRestoration = "manual"; }
 
@@ -1038,8 +1064,14 @@
       return right.id.localeCompare(left.id);
     }
 
-    function commentFromReviewPayload(payload) {
-      return normalizeReviewComment(payload && payload.comment);
+    function commentFromReviewPayload(payload, expectedRoute) {
+      var raw = payload && payload.comment;
+      var comment = normalizeReviewComment(raw);
+      if (expectedRoute !== undefined) {
+        if (!raw || typeof raw.route !== "string" || !comment
+            || comment.route !== normalizeRoute(expectedRoute)) { return null; }
+      }
+      return comment;
     }
 
     function reviewStatusLabel(status) {
@@ -1171,15 +1203,46 @@
     }
 
     function setReviewBackgroundInert(active) {
-      [document.querySelector(".topbar"), document.querySelector(".shell"), elements.searchDialog]
+      [document.querySelector(".topbar"), document.querySelector(".shell"), elements.searchDialog, elements.reviewSelectionAction]
         .filter(Boolean).forEach(function (element) {
           if (active) { element.setAttribute("inert", ""); }
           else { element.removeAttribute("inert"); }
         });
     }
 
+    function restoreReviewComposeHome() {
+      if (!reviewComposeHome.parent || elements.reviewCompose.parentNode === reviewComposeHome.parent) { return; }
+      if (reviewComposeHome.next && reviewComposeHome.next.parentNode === reviewComposeHome.parent) {
+        reviewComposeHome.parent.insertBefore(elements.reviewCompose, reviewComposeHome.next);
+      } else {
+        reviewComposeHome.parent.appendChild(elements.reviewCompose);
+      }
+      elements.reviewCompose.setAttribute("role", "dialog");
+      if (elements.reviewCompose.dataset.placement === "drawer") { elements.reviewCompose.dataset.placement = "right"; }
+      elements.reviewPageComment.setAttribute("aria-expanded", "false");
+    }
+
+    function mountReviewComposeInDrawer() {
+      if (!elements.reviewPanelBody) { return false; }
+      var thread = elements.reviewPanelBody.querySelector(".review-thread");
+      elements.reviewPanelBody.insertBefore(elements.reviewCompose, thread || null);
+      elements.reviewCompose.setAttribute("role", "region");
+      elements.reviewCompose.dataset.placement = "drawer";
+      elements.reviewCompose.style.removeProperty("left");
+      elements.reviewCompose.style.removeProperty("right");
+      elements.reviewCompose.style.removeProperty("top");
+      elements.reviewCompose.style.removeProperty("bottom");
+      elements.reviewCompose.style.removeProperty("max-height");
+      elements.reviewCompose.style.removeProperty("width");
+      elements.reviewPageComment.setAttribute("aria-expanded", "true");
+      return true;
+    }
+
     function closeReview(restoreFocus) {
       if (elements.reviewPanel.hidden) { return; }
+      if (elements.reviewCompose.parentNode === elements.reviewPanelBody) {
+        closeReviewCompose(false, !reviewComposerIsDirty(), false);
+      }
       document.body.classList.remove("review-open");
       elements.reviewPanel.hidden = true;
       elements.reviewScrim.hidden = true;
@@ -1189,6 +1252,7 @@
         state.reviewReturnFocus.focus();
       }
       state.reviewReturnFocus = null;
+      scheduleReviewSelectionAction();
     }
 
     function nearestSelectionHeading(startNode) {
@@ -1203,7 +1267,7 @@
       return nearest;
     }
 
-    function selectedReviewContext() {
+    function selectedReviewBundle() {
       if (typeof window.getSelection !== "function") { return null; }
       var selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.rangeCount) { return null; }
@@ -1221,7 +1285,7 @@
       if (!anchor || anchor.length > 256 || anchor.indexOf("#") !== -1 || /[\u0000-\u001f\u007f]/.test(anchor)) {
         anchor = "";
       }
-      return { quote: quote, anchor: anchor };
+      return { context: { quote: quote, anchor: anchor }, range: range };
     }
 
     function setReviewContext(context) {
@@ -1238,16 +1302,457 @@
         elements.reviewSelectionAnchor.removeAttribute("href");
         elements.reviewSelectionAnchor.hidden = true;
       }
+      scheduleReviewPosition();
+    }
+
+    function reviewComposerIsDirty() {
+      return Boolean(elements.reviewBody.value);
+    }
+
+    function nextReviewDraftToken() {
+      state.reviewDraftSequence += 1;
+      state.reviewDraftToken = state.reviewDraftSequence;
+      return state.reviewDraftToken;
+    }
+
+    function ensureReviewDraftToken() {
+      return state.reviewDraftToken || nextReviewDraftToken();
+    }
+
+    function clearReviewDraft(route, expectedToken) {
+      var target = route || state.reviewDraftRoute || state.route;
+      if (!target) { return false; }
+      target = normalizeRoute(target);
+      var draft = state.reviewDrafts.get(target);
+      if (expectedToken !== undefined && (!draft || draft.token !== expectedToken)) { return false; }
+      return state.reviewDrafts.delete(target);
+    }
+
+    function snapshotReviewDraft(route) {
+      var target = route || state.reviewDraftRoute || state.route;
+      if (!target) { return false; }
+      target = normalizeRoute(target);
+      if (!reviewComposerIsDirty()) {
+        if (state.reviewDraftRoute === target) { state.reviewDrafts.delete(target); }
+        return false;
+      }
+      state.reviewDrafts.set(target, {
+        body: elements.reviewBody.value,
+        context: state.reviewContext
+          ? { quote: state.reviewContext.quote, anchor: state.reviewContext.anchor || "" }
+          : null,
+        token: ensureReviewDraftToken(),
+      });
+      return true;
+    }
+
+    function restoreReviewDraft(route) {
+      var target = normalizeRoute(route || state.route || "/");
+      if (reviewComposerIsDirty() && state.reviewDraftRoute === target) { return true; }
+      var draft = state.reviewDrafts.get(target);
+      if (!draft || !draft.body) { return false; }
+      resetReviewComposer();
+      hideReviewSelectionAction(true);
+      elements.reviewBody.value = draft.body;
+      setReviewContext(draft.context);
+      state.reviewDraftRoute = target;
+      state.reviewDraftToken = draft.token || nextReviewDraftToken();
+      setReviewFormStatus("Draft restored.");
+      return true;
+    }
+
+    function finiteNumber(value, fallback) {
+      return Number.isFinite(value) ? value : fallback;
+    }
+
+    function clampNumber(value, minimum, maximum) {
+      return Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
+    }
+
+    function rangeViewportRect(range) {
+      if (!range) { return null; }
+      var rect = null;
+      if (typeof range.getClientRects === "function") {
+        var rects = Array.from(range.getClientRects());
+        for (var index = rects.length - 1; index >= 0; index -= 1) {
+          if (rects[index] && (rects[index].width || rects[index].height)) {
+            rect = rects[index];
+            break;
+          }
+        }
+      }
+      if (!rect && typeof range.getBoundingClientRect === "function") { rect = range.getBoundingClientRect(); }
+      if (!rect) {
+        var start = range.startContainer;
+        var element = start && start.nodeType === 1 ? start : start && start.parentElement;
+        if (element && typeof element.getBoundingClientRect === "function") { rect = element.getBoundingClientRect(); }
+      }
+      if (!rect) { return null; }
+      var left = finiteNumber(rect.left, 0);
+      var top = finiteNumber(rect.top, 0);
+      var width = Math.max(0, finiteNumber(rect.width, finiteNumber(rect.right, left) - left));
+      var height = Math.max(0, finiteNumber(rect.height, finiteNumber(rect.bottom, top) - top));
+      return {
+        left: left,
+        top: top,
+        right: finiteNumber(rect.right, left + width),
+        bottom: finiteNumber(rect.bottom, top + height),
+        width: width,
+        height: height,
+      };
+    }
+
+    function viewportSize() {
+      var visual = window.visualViewport;
+      var fallbackWidth = finiteNumber(window.innerWidth, 0) > 0
+        ? window.innerWidth
+        : finiteNumber(document.documentElement.clientWidth, 0) > 0 ? document.documentElement.clientWidth : 1024;
+      var fallbackHeight = finiteNumber(window.innerHeight, 0) > 0
+        ? window.innerHeight
+        : finiteNumber(document.documentElement.clientHeight, 0) > 0 ? document.documentElement.clientHeight : 768;
+      var visualWidth = visual ? finiteNumber(visual.width, 0) : 0;
+      var visualHeight = visual ? finiteNumber(visual.height, 0) : 0;
+      var width = visualWidth > 0 ? visualWidth : fallbackWidth;
+      var height = visualHeight > 0 ? visualHeight : fallbackHeight;
+      var left = visual ? finiteNumber(visual.offsetLeft, 0) : 0;
+      var top = visual ? finiteNumber(visual.offsetTop, 0) : 0;
+      return { left: left, top: top, right: left + width, bottom: top + height, width: width, height: height };
+    }
+
+    function reviewTopBoundary(viewport) {
+      var topbar = document.querySelector(".topbar");
+      var headerHeight = topbar ? (topbar.offsetHeight || 56) : 0;
+      var headerBottom = viewport.top + headerHeight;
+      var edge = Math.min(12, Math.max(0, viewport.height / 4));
+      if (topbar && typeof topbar.getBoundingClientRect === "function") {
+        var rect = topbar.getBoundingClientRect();
+        if (rect && finiteNumber(rect.bottom, 0) > viewport.top) {
+          headerBottom = Math.max(headerBottom, rect.bottom);
+        }
+      }
+      return clampNumber(headerBottom + 8, viewport.top + edge, viewport.bottom - edge);
+    }
+
+    function hideReviewSelectionAction(clearContext) {
+      elements.reviewSelectionAction.hidden = true;
+      elements.reviewSelectionAction.setAttribute("aria-expanded", "false");
+      state.reviewActionBox = null;
+      if (clearContext !== false) {
+        state.reviewKeepCachedSelection = false;
+        state.reviewPendingContext = null;
+        state.reviewPendingRequestNumber = 0;
+        state.reviewPendingRoute = "";
+        state.reviewSelectionRange = null;
+        state.reviewUseDrawer = false;
+      }
+    }
+
+    function positionReviewSelectionAction() {
+      if (elements.reviewSelectionAction.hidden || !state.reviewSelectionRange) { return false; }
+      var rect = rangeViewportRect(state.reviewSelectionRange);
+      var viewport = viewportSize();
+      var margin = 10;
+      var gap = 8;
+      var width = elements.reviewSelectionAction.offsetWidth || 126;
+      var height = elements.reviewSelectionAction.offsetHeight || 34;
+      var minimumTop = reviewTopBoundary(viewport);
+      var coarse = Boolean(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+      state.reviewUseDrawer = coarse || viewport.width <= 640 || !rect || (!rect.width && !rect.height);
+      if (!rect || (!rect.width && !rect.height)) {
+        var fallbackLeft = clampNumber(viewport.left + (viewport.width - width) / 2, viewport.left + margin, viewport.right - width - margin);
+        var fallbackTop = viewport.bottom - height - margin;
+        elements.reviewSelectionAction.style.left = Math.round(fallbackLeft) + "px";
+        elements.reviewSelectionAction.style.top = Math.round(fallbackTop) + "px";
+        state.reviewActionBox = {
+          left: fallbackLeft,
+          top: fallbackTop,
+          right: fallbackLeft + width,
+          bottom: fallbackTop + height,
+          width: width,
+          height: height,
+        };
+        return true;
+      }
+      var left = rect.right + gap;
+      if (left + width > viewport.right - margin) { left = rect.left - width - gap; }
+      left = clampNumber(left, viewport.left + margin, viewport.right - width - margin);
+      var top = clampNumber(
+        rect.top + Math.max(0, rect.height - height) / 2,
+        minimumTop,
+        viewport.bottom - height - margin,
+      );
+      elements.reviewSelectionAction.style.left = Math.round(left) + "px";
+      elements.reviewSelectionAction.style.top = Math.round(top) + "px";
+      state.reviewActionBox = { left: left, top: top, right: left + width, bottom: top + height, width: width, height: height };
+      return true;
+    }
+
+    function clearReviewComposePosition() {
+      elements.reviewCompose.style.removeProperty("left");
+      elements.reviewCompose.style.removeProperty("right");
+      elements.reviewCompose.style.removeProperty("top");
+      elements.reviewCompose.style.removeProperty("bottom");
+      elements.reviewCompose.style.removeProperty("width");
+      elements.reviewCompose.style.removeProperty("max-height");
+    }
+
+    function positionReviewComposeSheet(viewport) {
+      var margin = Math.min(12, Math.max(1, Math.floor(Math.min(viewport.width, viewport.height) / 20)));
+      var minimumTop = reviewTopBoundary(viewport);
+      var availableHeight = Math.max(1, viewport.bottom - minimumTop - margin);
+      var measuredHeight = elements.reviewCompose.offsetHeight || 360;
+      var sheetHeight = Math.min(512, availableHeight, Math.max(1, measuredHeight));
+      var sheetWidth = Math.min(640, Math.max(1, viewport.width - margin * 2));
+      var left = viewport.left + (viewport.width - sheetWidth) / 2;
+      var top = Math.max(minimumTop, viewport.bottom - margin - sheetHeight);
+      elements.reviewCompose.dataset.placement = "sheet";
+      elements.reviewCompose.style.left = Math.round(left) + "px";
+      elements.reviewCompose.style.right = "auto";
+      elements.reviewCompose.style.top = Math.round(top) + "px";
+      elements.reviewCompose.style.bottom = "auto";
+      elements.reviewCompose.style.width = Math.round(sheetWidth) + "px";
+      elements.reviewCompose.style.maxHeight = Math.max(1, Math.round(viewport.bottom - top - margin)) + "px";
+    }
+
+    function positionReviewCompose() {
+      if (elements.reviewCompose.hidden || elements.reviewCompose.parentNode === elements.reviewPanelBody) { return; }
+      var viewport = viewportSize();
+      var selection = rangeViewportRect(state.reviewSelectionRange);
+      var margin = 12;
+      var actionGap = 8;
+      var composeGap = 10;
+      var actionWidth = elements.reviewSelectionAction.offsetWidth || 126;
+      var width = elements.reviewCompose.offsetWidth || 352;
+      var height = elements.reviewCompose.offsetHeight || 360;
+      var mobile = viewport.width <= 640 || (window.matchMedia && window.matchMedia("(max-width: 39.99rem)").matches);
+
+      clearReviewComposePosition();
+
+      if (mobile || !selection || (!selection.width && !selection.height)) {
+        positionReviewComposeSheet(viewport);
+        return;
+      }
+
+      var left = selection.right + actionGap + actionWidth + composeGap;
+      var minimumTop = reviewTopBoundary(viewport);
+      var maximumHeight = viewport.bottom - minimumTop - margin;
+      if (left + width <= viewport.right - margin && maximumHeight >= 220) {
+        var renderedHeight = Math.min(height, maximumHeight);
+        var top = clampNumber(selection.top, minimumTop, viewport.bottom - renderedHeight - margin);
+        elements.reviewCompose.dataset.placement = "right";
+        elements.reviewCompose.style.left = Math.round(left) + "px";
+        elements.reviewCompose.style.top = Math.round(top) + "px";
+        elements.reviewCompose.style.maxHeight = Math.round(viewport.bottom - top - margin) + "px";
+        return;
+      }
+
+      positionReviewComposeSheet(viewport);
+    }
+
+    function repositionReviewUi() {
+      if (elements.reviewSelectionAction.hidden && elements.reviewCompose.hidden) { return; }
+      if (!elements.reviewCompose.hidden && elements.reviewCompose.parentNode === elements.reviewPanelBody) { return; }
+      var rect = rangeViewportRect(state.reviewSelectionRange);
+      var viewport = viewportSize();
+      if (rect && (rect.width || rect.height) &&
+          (rect.bottom < viewport.top || rect.top > viewport.bottom || rect.right < viewport.left || rect.left > viewport.right)) {
+        if (!elements.reviewCompose.hidden && reviewComposerIsDirty()) {
+          elements.reviewSelectionAction.hidden = true;
+          elements.reviewSelectionAction.setAttribute("aria-expanded", "false");
+          state.reviewActionBox = null;
+          positionReviewComposeSheet(viewport);
+        } else if (!elements.reviewCompose.hidden) {
+          closeReviewCompose(false, true, true);
+        } else {
+          hideReviewSelectionAction(true);
+        }
+        return;
+      }
+      if (!rect || (!rect.width && !rect.height)) {
+        if (!elements.reviewCompose.hidden && reviewComposerIsDirty()) {
+          elements.reviewSelectionAction.hidden = true;
+          elements.reviewSelectionAction.setAttribute("aria-expanded", "false");
+          state.reviewActionBox = null;
+          positionReviewComposeSheet(viewport);
+        }
+        return;
+      }
+      if (elements.reviewSelectionAction.hidden && !elements.reviewCompose.hidden) {
+        elements.reviewSelectionAction.hidden = false;
+        elements.reviewSelectionAction.setAttribute("aria-expanded", "true");
+      }
+      positionReviewSelectionAction();
+      if (!elements.reviewCompose.hidden) { positionReviewCompose(); }
+    }
+
+    function scheduleReviewPosition() {
+      if (state.reviewPositionFrame) { window.cancelAnimationFrame(state.reviewPositionFrame); }
+      state.reviewPositionFrame = window.requestAnimationFrame(function () {
+        state.reviewPositionFrame = 0;
+        repositionReviewUi();
+      });
+    }
+
+    function cacheReviewSelection(bundle) {
+      if (!bundle) { return false; }
+      state.reviewPendingContext = bundle.context;
+      try { state.reviewSelectionRange = bundle.range.cloneRange(); }
+      catch (ignore) { state.reviewSelectionRange = bundle.range; }
+      state.reviewPendingRoute = state.route;
+      state.reviewPendingRequestNumber = state.requestNumber;
+      return true;
+    }
+
+    function cacheReviewSelectionBeforeControl() {
+      if (!state.reviewAvailable || reviewComposerIsDirty()) { return; }
+      cacheReviewSelection(selectedReviewBundle());
+    }
+
+    function updateReviewSelectionAction() {
+      state.reviewSelectionFrame = 0;
+      if (!state.reviewAvailable || !elements.reviewPanel.hidden || !elements.reviewCompose.hidden) { return; }
+      if (reviewComposerIsDirty() && state.reviewDraftRoute === state.route) {
+        if (state.reviewSelectionRange && state.reviewPendingRoute === state.route
+            && state.reviewPendingRequestNumber === state.requestNumber) {
+          elements.reviewSelectionAction.hidden = false;
+          positionReviewSelectionAction();
+        }
+        return;
+      }
+      var bundle = selectedReviewBundle();
+      var cachedSelectionValid = state.reviewPendingContext && state.reviewSelectionRange
+        && state.reviewPendingRoute === state.route
+        && state.reviewPendingRequestNumber === state.requestNumber;
+      if (!bundle && state.reviewKeepCachedSelection && cachedSelectionValid) {
+        elements.reviewSelectionAction.hidden = false;
+        positionReviewSelectionAction();
+        return;
+      }
+      if (!bundle) { hideReviewSelectionAction(true); return; }
+      state.reviewKeepCachedSelection = false;
+      cacheReviewSelection(bundle);
+      elements.reviewSelectionAction.hidden = false;
+      positionReviewSelectionAction();
+    }
+
+    function scheduleReviewSelectionAction() {
+      if (state.reviewSelectionFrame) { window.cancelAnimationFrame(state.reviewSelectionFrame); }
+      state.reviewSelectionFrame = window.requestAnimationFrame(updateReviewSelectionAction);
+    }
+
+    function announceReview(message) {
+      elements.reviewLiveStatus.textContent = "";
+      window.requestAnimationFrame(function () { elements.reviewLiveStatus.textContent = message || ""; });
+    }
+
+    function closeReviewCompose(restoreFocus, reset, hideAction) {
+      var wasOpen = !elements.reviewCompose.hidden;
+      elements.reviewCompose.hidden = true;
+      elements.reviewSelectionAction.setAttribute("aria-expanded", "false");
+      restoreReviewComposeHome();
+      if (reset !== false) { resetReviewComposer(); }
+      if (hideAction) { hideReviewSelectionAction(true); }
+      else if (state.reviewSelectionRange && state.reviewPendingRoute === state.route) {
+        state.reviewKeepCachedSelection = true;
+      }
+      if (wasOpen && restoreFocus !== false) {
+        var preferred = state.reviewComposeReturnFocus;
+        var preferredHidden = !preferred || preferred.hidden
+          || (preferred.closest && preferred.closest("[hidden], [inert]"));
+        var target = !preferredHidden
+          ? preferred
+          : !elements.reviewPanel.hidden
+            ? elements.reviewClose
+            : !elements.reviewSelectionAction.hidden ? elements.reviewSelectionAction : elements.article;
+        window.requestAnimationFrame(function () { target.focus({ preventScroll: true }); });
+      }
+      state.reviewComposeReturnFocus = null;
+    }
+
+    function openReviewCompose() {
+      if (!state.reviewAvailable) { return; }
+      var resumeDraft = reviewComposerIsDirty() && state.reviewDraftRoute === state.route;
+      var cacheValid = state.reviewPendingContext && state.reviewPendingRoute === state.route
+        && state.reviewPendingRequestNumber === state.requestNumber;
+      var context = resumeDraft ? state.reviewContext : cacheValid ? state.reviewPendingContext : null;
+      if (!context && !resumeDraft) {
+        var bundle = selectedReviewBundle();
+        if (!bundle) { hideReviewSelectionAction(true); return; }
+        context = bundle.context;
+        cacheReviewSelection(bundle);
+        positionReviewSelectionAction();
+      }
+      closeSearch();
+      closeSidebar();
+      closeReview(false);
+      positionReviewSelectionAction();
+      if (!resumeDraft) {
+        resetReviewComposer();
+        setReviewContext(context);
+        state.reviewDraftRoute = state.route;
+      }
+      state.reviewComposeReturnFocus = elements.reviewSelectionAction;
+      if (state.reviewUseDrawer && mountReviewComposeInDrawer()) {
+        state.reviewReturnFocus = elements.reviewSelectionAction;
+        elements.reviewPanel.hidden = false;
+        elements.reviewScrim.hidden = false;
+        elements.reviewButton.setAttribute("aria-expanded", "true");
+        document.body.classList.add("review-open");
+        setReviewBackgroundInert(true);
+      } else {
+        restoreReviewComposeHome();
+      }
+      elements.reviewCompose.hidden = false;
+      elements.reviewSelectionAction.setAttribute("aria-expanded", "true");
+      if (elements.reviewCompose.parentNode !== elements.reviewPanelBody) { positionReviewCompose(); }
+      window.setTimeout(function () { elements.reviewBody.focus(); }, 0);
+    }
+
+    function openPageReviewCompose() {
+      if (!state.reviewAvailable || elements.reviewPanel.hidden) { return; }
+      var resumeDraft = reviewComposerIsDirty() && state.reviewDraftRoute === state.route;
+      if (!resumeDraft) { resumeDraft = restoreReviewDraft(state.route); }
+      if (!resumeDraft) {
+        resetReviewComposer();
+        setReviewContext(null);
+        state.reviewDraftRoute = state.route;
+      }
+      hideReviewSelectionAction(!resumeDraft);
+      mountReviewComposeInDrawer();
+      elements.reviewCompose.hidden = false;
+      state.reviewComposeReturnFocus = elements.reviewPageComment;
+      window.setTimeout(function () { elements.reviewBody.focus(); }, 0);
+    }
+
+    function dismissReviewComposeWithEscape() {
+      if (reviewComposerIsDirty()) {
+        setReviewFormStatus("Draft kept open. Use Cancel to discard it.");
+        return;
+      }
+      closeReviewCompose(true, true, false);
+    }
+
+    function cancelReviewCompose() {
+      clearReviewDraft(state.reviewDraftRoute || state.route);
+      closeReviewCompose(true, true, false);
     }
 
     function setReviewFormStatus(message, kind) {
       elements.reviewFormStatus.textContent = message || "";
       elements.reviewFormStatus.classList.toggle("is-error", kind === "error");
+      scheduleReviewPosition();
+    }
+
+    function setReviewPanelStatus(message, kind) {
+      elements.reviewPanelStatus.textContent = message || "";
+      elements.reviewPanelStatus.classList.toggle("is-error", kind === "error");
     }
 
     function resetReviewComposer() {
       elements.reviewForm.reset();
       elements.reviewSubmit.disabled = false;
+      state.reviewDraftRoute = "";
+      state.reviewDraftToken = 0;
       setReviewContext(null);
       setReviewFormStatus("");
     }
@@ -1256,8 +1761,10 @@
       if (!state.reviewAvailable) { return; }
       closeSearch();
       closeSidebar();
-      var context = selectedReviewContext();
-      if (context) { setReviewContext(context); }
+      var composeWasOpen = !elements.reviewCompose.hidden;
+      if (composeWasOpen) { mountReviewComposeInDrawer(); }
+      hideReviewSelectionAction(false);
+      setReviewPanelStatus("");
       state.reviewReturnFocus = document.activeElement && document.activeElement !== document.body
         ? document.activeElement
         : elements.reviewButton;
@@ -1266,15 +1773,20 @@
       elements.reviewButton.setAttribute("aria-expanded", "true");
       document.body.classList.add("review-open");
       setReviewBackgroundInert(true);
-      window.setTimeout(function () { elements.reviewBody.focus(); }, 0);
+      window.setTimeout(function () {
+        (composeWasOpen ? elements.reviewBody : elements.reviewClose).focus();
+      }, 0);
     }
 
     function hideReviewFeature(focusFallback) {
-      var wasOpen = !elements.reviewPanel.hidden;
+      var wasOpen = !elements.reviewPanel.hidden || !elements.reviewCompose.hidden;
+      snapshotReviewDraft(state.route);
       state.reviewAvailable = false;
       state.reviewComments = [];
       elements.reviewButton.hidden = true;
+      closeReviewCompose(false, true, true);
       closeReview(false);
+      setReviewPanelStatus("");
       renderReviewList();
       if (wasOpen && focusFallback !== false) {
         window.requestAnimationFrame(function () { elements.article.focus({ preventScroll: true }); });
@@ -1301,7 +1813,9 @@
           state.reviewAvailable = true;
           state.reviewComments = commentsFromReviewPayload(payload, target);
           elements.reviewButton.hidden = false;
+          restoreReviewDraft(target);
           renderReviewList();
+          scheduleReviewSelectionAction();
         }).catch(function (error) {
           if (error && error.name === "AbortError") { return; }
           if (requestNumber === state.reviewRequestNumber && target === state.route) { hideReviewFeature(true); }
@@ -1327,6 +1841,7 @@
       }
       var targetRoute = state.route;
       var pageRequestNumber = state.requestNumber;
+      var submittedDraftToken = ensureReviewDraftToken();
       var payload = { route: targetRoute, body: body };
       if (state.reviewContext && state.reviewContext.anchor) { payload.anchor = state.reviewContext.anchor; }
       if (state.reviewContext && state.reviewContext.quote) { payload.quote = state.reviewContext.quote; }
@@ -1338,13 +1853,19 @@
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }).then(function (response) {
+        var comment = commentFromReviewPayload(response, targetRoute);
+        if (!comment) { throw new Error("Review response did not contain the saved comment."); }
+        clearReviewDraft(targetRoute, submittedDraftToken);
         if (targetRoute !== state.route || pageRequestNumber !== state.requestNumber) { return; }
-        var comment = commentFromReviewPayload(response);
         if (comment && comment.route === state.route) { upsertReviewComment(comment); }
-        elements.reviewForm.reset();
-        setReviewContext(null);
-        setReviewFormStatus("Comment saved.");
         renderReviewList();
+        announceReview("Comment saved.");
+        if (state.reviewDraftToken === submittedDraftToken) {
+          closeReviewCompose(true, true, true);
+        } else if (!elements.reviewCompose.hidden) {
+          snapshotReviewDraft(targetRoute);
+          setReviewFormStatus("Comment saved. Your newer draft is still open.");
+        }
       }).catch(function () {
         if (targetRoute !== state.route || pageRequestNumber !== state.requestNumber) { return; }
         setReviewFormStatus("Comment could not be saved. Try again.", "error");
@@ -1361,7 +1882,7 @@
       var pageRequestNumber = state.requestNumber;
       cancelReviewRefresh();
       button.disabled = true;
-      setReviewFormStatus("Updating\u2026");
+      setReviewPanelStatus("Updating\u2026");
       return requestReviewJson(reviewEndpoint(id), {
         method: "PATCH",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -1373,11 +1894,11 @@
           upsertReviewComment(updated);
           renderReviewList();
         }
-        setReviewFormStatus(status === "resolved" ? "Comment resolved." : "Comment reopened.");
+        setReviewPanelStatus(status === "resolved" ? "Comment resolved." : "Comment reopened.");
       }).catch(function () {
         if (targetRoute !== state.route || pageRequestNumber !== state.requestNumber) { return; }
         button.disabled = false;
-        setReviewFormStatus("Comment could not be updated. Try again.", "error");
+        setReviewPanelStatus("Comment could not be updated. Try again.", "error");
       });
     }
 
@@ -1566,8 +2087,11 @@
         var target = routeLinkTarget(routeLink);
         if (target) {
           event.preventDefault();
-          var fromReview = Boolean(routeLink.closest("#review-panel"));
-          if (fromReview) { closeReview(false); }
+          var fromPanel = Boolean(routeLink.closest("#review-panel"));
+          var fromCompose = Boolean(routeLink.closest("#review-compose"));
+          var fromReview = fromPanel || fromCompose;
+          if (fromCompose) { closeReviewCompose(false, false, false); }
+          if (fromPanel) { closeReview(false); }
           navigate(target.route, { hash: target.hash, focus: !target.hash, focusHash: fromReview });
           return;
         }
@@ -1617,20 +2141,20 @@
     elements.themeButton.addEventListener("click", function () {
       applyTheme(root.getAttribute("data-theme") === "dark" ? "light" : "dark", true);
     });
+    elements.reviewButton.addEventListener("pointerdown", cacheReviewSelectionBeforeControl);
+    elements.reviewButton.addEventListener("mousedown", cacheReviewSelectionBeforeControl);
     elements.reviewButton.addEventListener("click", openReview);
     elements.reviewClose.addEventListener("click", function () { closeReview(true); });
     elements.reviewScrim.addEventListener("click", function () { closeReview(true); });
-    elements.reviewUseSelection.addEventListener("click", function () {
-      var context = selectedReviewContext();
-      if (context) {
-        setReviewContext(context);
-        setReviewFormStatus("Selected text attached.");
-      } else {
-        setReviewFormStatus("Select text in the document before opening comments.", "error");
-      }
-    });
+    elements.reviewSelectionAction.addEventListener("pointerdown", function (event) { event.preventDefault(); });
+    elements.reviewSelectionAction.addEventListener("mousedown", function (event) { event.preventDefault(); });
+    elements.reviewSelectionAction.addEventListener("click", openReviewCompose);
+    elements.reviewPageComment.addEventListener("click", openPageReviewCompose);
+    elements.reviewComposeClose.addEventListener("click", function () { closeReviewCompose(true, false, false); });
+    elements.reviewComposeCancel.addEventListener("click", cancelReviewCompose);
     elements.reviewClearSelection.addEventListener("click", function () {
       setReviewContext(null);
+      nextReviewDraftToken();
       setReviewFormStatus("Selected text removed.");
     });
     elements.reviewRefresh.addEventListener("click", function () { refreshReviewComments(state.route); });
@@ -1638,10 +2162,21 @@
       event.preventDefault();
       saveReviewComment();
     });
+    elements.reviewBody.addEventListener("input", function () {
+      if (!state.reviewDraftRoute) { state.reviewDraftRoute = state.route; }
+      nextReviewDraftToken();
+      scheduleReviewPosition();
+    });
     elements.reviewList.addEventListener("click", function (event) {
       var button = event.target.closest && event.target.closest(".review-status-button");
       if (!button) { return; }
       updateReviewComment(button.dataset.reviewId, button.dataset.reviewStatus, button);
+    });
+    elements.reviewCompose.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") { return; }
+      event.preventDefault();
+      event.stopPropagation();
+      dismissReviewComposeWithEscape();
     });
     elements.reviewPanel.addEventListener("keydown", function (event) {
       if (event.key === "Escape") {
@@ -1672,7 +2207,30 @@
       }
     });
 
+    document.addEventListener("pointerdown", function (event) {
+      if (elements.reviewCompose.hidden || elements.reviewCompose.contains(event.target)
+          || elements.reviewSelectionAction.contains(event.target)) { return; }
+      if (!reviewComposerIsDirty()) { closeReviewCompose(false, true, true); }
+    });
+    document.addEventListener("selectionchange", scheduleReviewSelectionAction);
+    elements.article.addEventListener("pointerdown", function () { state.reviewKeepCachedSelection = false; });
+    elements.article.addEventListener("pointerup", function () {
+      state.reviewKeepCachedSelection = false;
+      scheduleReviewSelectionAction();
+    });
+    elements.article.addEventListener("keyup", function () {
+      state.reviewKeepCachedSelection = false;
+      scheduleReviewSelectionAction();
+    });
+
     document.addEventListener("keydown", function (event) {
+      if (!elements.reviewCompose.hidden) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          dismissReviewComposeWithEscape();
+        }
+        return;
+      }
       if (!elements.reviewPanel.hidden) {
         if (event.key === "Escape") {
           event.preventDefault();
@@ -1695,6 +2253,16 @@
     });
 
     window.addEventListener("scroll", scheduleScrollSave, { passive: true });
+    window.addEventListener("scroll", scheduleReviewPosition, { passive: true, capture: true });
+    window.addEventListener("resize", scheduleReviewPosition);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("scroll", scheduleReviewPosition, { passive: true });
+      window.visualViewport.addEventListener("resize", scheduleReviewPosition, { passive: true });
+    }
+    if (typeof window.ResizeObserver === "function") {
+      reviewComposeResizeObserver = new window.ResizeObserver(scheduleReviewPosition);
+      reviewComposeResizeObserver.observe(elements.reviewCompose);
+    }
     window.addEventListener("pagehide", saveScrollPosition);
     window.addEventListener("popstate", function (event) {
       var stored = event.state;

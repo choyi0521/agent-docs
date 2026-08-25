@@ -89,6 +89,39 @@
     <aside class="tocbar" id="tocbar" aria-label="On this page"></aside>
   </div>
 
+  <button class="review-selection-action" id="review-selection-action" type="button" hidden
+          aria-label="Add a comment about selected text"
+          aria-controls="review-compose" aria-expanded="false">Add comment</button>
+  <section class="review-compose" id="review-compose" role="dialog"
+           aria-labelledby="review-compose-title" data-placement="right" tabindex="-1" hidden>
+    <header class="review-compose-header">
+      <h2 id="review-compose-title">Add comment</h2>
+      <button class="icon-button" id="review-compose-close" type="button" aria-label="Close comment editor">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+    <form class="review-form" id="review-form">
+      <label for="review-body">Leave a comment</label>
+      <textarea id="review-body" name="body" rows="4" maxlength="8000" required
+                aria-describedby="review-selection review-form-status"
+                placeholder="Describe what should change or what needs clarification."></textarea>
+      <blockquote class="review-selection" id="review-selection" hidden>
+        <span class="review-selection-label">Quoted from this page</span>
+        <span id="review-selection-text"></span>
+        <a id="review-selection-anchor" href="#" data-route hidden></a>
+      </blockquote>
+      <div class="review-context-actions">
+        <button class="review-text-button" id="review-clear-selection" type="button" hidden>Clear selection</button>
+      </div>
+      <p class="review-form-status" id="review-form-status" role="status" aria-live="polite"></p>
+      <div class="review-compose-actions">
+        <button class="review-secondary-button" id="review-compose-cancel" type="button">Cancel</button>
+        <button class="review-submit" id="review-submit" type="submit">Add comment</button>
+      </div>
+    </form>
+  </section>
+  <p class="sr-only" id="review-live-status" role="status" aria-live="polite"></p>
+
   <button class="review-scrim" id="review-scrim" type="button"
           aria-label="Close page comments" hidden></button>
   <aside class="review-panel" id="review-panel" role="dialog" aria-modal="true"
@@ -104,22 +137,11 @@
     </header>
     <div class="review-panel-body">
       <p class="review-skill-hint">Ask your agent to use <code>$docs-authoring</code> to answer these comments.</p>
-      <form class="review-form" id="review-form">
-        <label for="review-body">Leave a comment</label>
-        <textarea id="review-body" name="body" rows="4" maxlength="8000" required
-                  placeholder="Describe what should change or what needs clarification."></textarea>
-        <div class="review-context-actions">
-          <button class="review-secondary-button" id="review-use-selection" type="button">Use selected text</button>
-          <button class="review-text-button" id="review-clear-selection" type="button" hidden>Clear selection</button>
-        </div>
-        <blockquote class="review-selection" id="review-selection" hidden>
-          <span class="review-selection-label">Quoted from this page</span>
-          <span id="review-selection-text"></span>
-          <a id="review-selection-anchor" href="#" data-route hidden></a>
-        </blockquote>
-        <p class="review-form-status" id="review-form-status" role="status" aria-live="polite"></p>
-        <button class="review-submit" id="review-submit" type="submit">Add comment</button>
-      </form>
+      <div class="review-panel-create">
+        <button class="review-secondary-button" id="review-page-comment" type="button"
+                aria-controls="review-compose" aria-expanded="false">Add page comment</button>
+      </div>
+      <p class="review-panel-status" id="review-panel-status" role="status" aria-live="polite"></p>
       <section class="review-thread" aria-labelledby="review-thread-title">
         <div class="review-thread-heading">
           <h3 id="review-thread-title">Comments on this page</h3>

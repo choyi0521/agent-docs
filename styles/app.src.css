@@ -1088,6 +1088,80 @@ details[open] > .snip-toggle .snip-toggle-hide { display: inline; }
   text-align: center;
 }
 
+.review-selection-action {
+  position: fixed;
+  z-index: 63;
+  min-height: 2.15rem;
+  padding: 0.35rem 0.68rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-on);
+  box-shadow: 0 0.45rem 1.4rem color-mix(in srgb, var(--accent) 24%, transparent);
+  font-size: 0.73rem;
+  font-weight: 680;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.review-selection-action:hover,
+.review-selection-action[aria-expanded="true"] { background: var(--accent-hover); }
+
+.review-compose {
+  position: fixed;
+  z-index: 66;
+  width: min(22rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.78rem;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+  animation: review-compose-in 140ms ease-out;
+}
+
+@keyframes review-compose-in {
+  from { transform: translateY(0.3rem); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.review-compose[data-placement="sheet"] {
+  top: auto;
+  right: max(0.65rem, env(safe-area-inset-right));
+  bottom: max(0.65rem, env(safe-area-inset-bottom));
+  left: max(0.65rem, env(safe-area-inset-left));
+  width: auto;
+  max-height: min(32rem, calc(100dvh - var(--header-height) - 1.3rem));
+}
+
+.review-compose[data-placement="drawer"] {
+  position: static;
+  width: auto;
+  max-height: none;
+  margin: 0.85rem 1.2rem 0;
+  border-color: var(--border);
+  box-shadow: none;
+  animation: none;
+}
+
+.review-compose-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3.25rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.review-compose-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.87rem;
+  letter-spacing: -0.01em;
+}
+
 body.review-open { overflow: hidden; }
 
 .review-scrim {
@@ -1151,6 +1225,24 @@ body.review-open { overflow: hidden; }
   overscroll-behavior: contain;
 }
 
+.review-panel-status {
+  min-height: 1.15rem;
+  margin: 0;
+  padding: 0.35rem 1.2rem 0;
+  color: var(--text-muted);
+  font-size: 0.71rem;
+  line-height: 1.15rem;
+}
+
+.review-panel-status:empty { min-height: 0; padding-top: 0; }
+.review-panel-status.is-error { color: var(--danger); }
+
+.review-panel-create {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.8rem 1.2rem 0;
+}
+
 .review-skill-hint {
   margin: 0;
   padding: 0.72rem 1.2rem;
@@ -1172,9 +1264,10 @@ body.review-open { overflow: hidden; }
   display: grid;
   gap: 0.65rem;
   padding: 1.15rem 1.2rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface-raised);
 }
+
+.review-compose[data-placement="drawer"] .review-form { background: var(--surface); }
 
 .review-form > label {
   color: var(--text);
@@ -1200,6 +1293,7 @@ body.review-open { overflow: hidden; }
 .review-form textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .review-context-actions,
+.review-compose-actions,
 .review-thread-heading,
 .review-comment-header,
 .review-comment-actions {
@@ -1208,6 +1302,7 @@ body.review-open { overflow: hidden; }
 }
 
 .review-context-actions { gap: 0.7rem; }
+.review-compose-actions { justify-content: flex-end; gap: 0.55rem; }
 
 .review-secondary-button,
 .review-submit {
@@ -1442,7 +1537,8 @@ body.review-open { overflow: hidden; }
 }
 
 @media print {
-  .topbar, .sidebar, .tocbar, .route-progress, .page-links, .copy, .review-panel, .review-scrim { display: none !important; }
+  .topbar, .sidebar, .tocbar, .route-progress, .page-links, .copy,
+  .review-panel, .review-scrim, .review-compose, .review-selection-action { display: none !important; }
   .shell { display: block; }
   .prose-wrap { width: auto; max-width: none; padding: 0; }
   body { background: #fff; color: #000; }

@@ -116,6 +116,9 @@ let lastReviewPost = null;
 let lastReviewPatch = null;
 let failReviewGet = false;
 let rejectNextReviewPatch = true;
+let reviewPostCount = 0;
+let reviewPostDelay = 25;
+let reviewPostResponses = 0;
 
 const dom = new JSDOM(shellSource, {
   url: "https://docs.example.test/docs/guide/setup",
@@ -125,6 +128,28 @@ const dom = new JSDOM(shellSource, {
 const { window } = dom;
 window.scrollTo = () => {};
 window.HTMLElement.prototype.scrollIntoView = () => {};
+let selectionRect = { left: 200, top: 190, right: 320, bottom: 212, width: 120, height: 22 };
+let coarsePointer = false;
+let visualOffsetLeft = 0;
+let visualOffsetTop = 0;
+let visualWidth = null;
+let visualHeight = null;
+const visualViewport = new window.EventTarget();
+Object.defineProperties(visualViewport, {
+  width: { get: () => visualWidth ?? window.innerWidth },
+  height: { get: () => visualHeight ?? window.innerHeight },
+  offsetLeft: { get: () => visualOffsetLeft },
+  offsetTop: { get: () => visualOffsetTop },
+});
+Object.defineProperty(window, "visualViewport", { configurable: true, value: visualViewport });
+window.Range.prototype.getBoundingClientRect = () => ({ ...selectionRect });
+window.Range.prototype.getClientRects = () => [{ ...selectionRect }];
+window.matchMedia = (query) => ({
+  matches: query.includes("pointer") ? coarsePointer : query.includes("max-width") ? window.innerWidth <= 640 : false,
+  media: query,
+  addEventListener() {},
+  removeEventListener() {},
+});
 window.fetch = async (input, options = {}) => {
   const url = new URL(String(input), window.location.href);
   const pathname = url.pathname;
@@ -143,15 +168,17 @@ window.fetch = async (input, options = {}) => {
   }
   if (pathname === "/docs/__agent-docs/review/comments" && method === "POST") {
     lastReviewPost = JSON.parse(options.body);
+    reviewPostCount += 1;
     const comment = {
-      id: "rc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      id: `rc_${(reviewPostCount === 1 ? "b" : "c").repeat(32)}`,
       ...lastReviewPost,
       status: "open",
       createdAt: "2026-08-24T02:00:00.000Z",
       updatedAt: "2026-08-24T02:00:00.000Z",
     };
     reviewRecords.unshift(comment);
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await new Promise((resolve) => setTimeout(resolve, reviewPostDelay));
+    reviewPostResponses += 1;
     return { ok: true, status: 201, json: async () => ({ schemaVersion: 1, comment: structuredClone(comment) }) };
   }
   const reviewPatch = pathname.match(/^\/docs\/__agent-docs\/review\/comments\/(rc_[a-f0-9]{32})$/);
@@ -215,23 +242,92 @@ function waitFor(test, message) {
   reviewRange.selectNodeContents(reviewSelectionNode);
   window.getSelection().removeAllRanges();
   window.getSelection().addRange(reviewRange);
-  window.document.querySelector("#review-button").click();
-  await waitFor(() => !window.document.querySelector("#review-panel").hidden, "review panel did not open");
+  window.document.dispatchEvent(new window.Event("selectionchange"));
+  const selectionAction = window.document.querySelector("#review-selection-action");
+  await waitFor(() => !selectionAction.hidden, "selection action did not appear");
+  assert.equal(selectionAction.textContent, "Add comment");
+  assert.equal(selectionAction.getAttribute("aria-label"), "Add a comment about selected text");
+  assert.ok(parseFloat(selectionAction.style.left) > selectionRect.right);
+  const preserveSelection = new window.Event("pointerdown", { bubbles: true, cancelable: true });
+  selectionAction.dispatchEvent(preserveSelection);
+  assert.equal(preserveSelection.defaultPrevented, true);
+
+  selectionAction.click();
+  const reviewCompose = window.document.querySelector("#review-compose");
+  await waitFor(() => !reviewCompose.hidden, "contextual comment editor did not open");
   await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "review form did not receive focus");
-  assert.equal(window.document.querySelector("#review-button").getAttribute("aria-expanded"), "true");
+  assert.equal(window.document.querySelector("#review-panel").hidden, true);
+  assert.equal(reviewCompose.getAttribute("role"), "dialog");
+  assert.equal(reviewCompose.hasAttribute("aria-modal"), false);
+  assert.equal(window.document.querySelector("#review-body").getAttribute("aria-describedby"), "review-selection review-form-status");
+  assert.equal(reviewCompose.dataset.placement, "right");
+  assert.ok(parseFloat(reviewCompose.style.left) > parseFloat(selectionAction.style.left));
+  assert.equal(selectionAction.getAttribute("aria-expanded"), "true");
   assert.equal(window.document.querySelector("#review-selection-text").textContent, "First pane");
   assert.equal(window.document.querySelector("#review-selection-anchor").textContent, "#install");
-  assert.match(window.document.querySelector(".review-skill-hint").textContent, /\$docs-authoring/);
-  assert.equal(window.document.querySelector(".topbar").hasAttribute("inert"), true);
-  assert.equal(window.document.querySelector(".shell").hasAttribute("inert"), true);
+  assert.equal(window.document.querySelector(".topbar").hasAttribute("inert"), false);
+  assert.equal(window.document.querySelector(".shell").hasAttribute("inert"), false);
   window.document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true }));
   assert.equal(window.document.querySelector("#search-dialog").hasAttribute("open"), false);
+
+  reviewCompose.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  await waitFor(() => reviewCompose.hidden, "Escape did not close the contextual editor");
+  await waitFor(() => window.document.activeElement === selectionAction, "Escape did not restore selection-action focus");
+  assert.equal(selectionAction.getAttribute("aria-expanded"), "false");
+  assert.equal(selectionAction.hidden, false);
+
+  selectionAction.click();
+  await waitFor(() => !reviewCompose.hidden, "dirty contextual editor did not reopen");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "dirty editor did not receive focus");
+  window.document.querySelector("#review-body").value = "Keep this draft";
+  window.document.querySelector("#review-body").dispatchEvent(new window.Event("input", { bubbles: true }));
+  window.document.querySelector("#article").focus();
+  window.document.querySelector("#article").dispatchEvent(new window.Event("pointerdown", { bubbles: true }));
+  assert.equal(reviewCompose.hidden, false);
+  assert.equal(window.document.querySelector("#review-body").value, "Keep this draft");
+  assert.equal(window.document.activeElement, window.document.querySelector("#article"));
+
+  selectionRect = { left: 200, top: -180, right: 320, bottom: -158, width: 120, height: 22 };
+  window.dispatchEvent(new window.Event("scroll"));
+  await waitFor(() => reviewCompose.dataset.placement === "sheet", "dirty scrolled draft was not docked safely");
+  assert.equal(reviewCompose.hidden, false);
+  assert.equal(window.document.querySelector("#review-body").value, "Keep this draft");
+
+  selectionRect = { left: 200, top: 190, right: 320, bottom: 212, width: 120, height: 22 };
+  window.dispatchEvent(new window.Event("scroll"));
+  await waitFor(() => reviewCompose.dataset.placement === "right", "docked draft did not return to its selection");
+  reviewCompose.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  assert.equal(reviewCompose.hidden, false);
+  assert.equal(window.document.querySelector("#review-form-status").textContent, "Draft kept open. Use Cancel to discard it.");
+  window.document.querySelector("#review-compose-cancel").click();
+  await waitFor(() => reviewCompose.hidden, "Cancel did not discard the contextual draft");
+  assert.equal(window.document.querySelector("#review-body").value, "");
+  await waitFor(() => window.document.activeElement === selectionAction, "Cancel did not restore selection-action focus");
+
+  selectionAction.click();
+  await waitFor(() => !reviewCompose.hidden, "empty contextual editor did not reopen");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "empty editor did not receive focus");
+  window.document.querySelector("#article").focus();
+  window.document.querySelector("#article").dispatchEvent(new window.Event("pointerdown", { bubbles: true }));
+  assert.equal(reviewCompose.hidden, true);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(window.document.activeElement, window.document.querySelector("#article"));
+
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(reviewRange);
+  window.document.dispatchEvent(new window.Event("selectionchange"));
+  await waitFor(() => !selectionAction.hidden, "selection action did not return after reselecting text");
+  selectionAction.click();
+  await waitFor(() => !reviewCompose.hidden, "contextual editor did not reopen from its cached selection");
 
   window.document.querySelector("#review-body").value = "Please add one more example.";
   window.document.querySelector("#review-form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
   window.document.querySelector("#review-refresh").click();
   await waitFor(() => window.document.querySelectorAll(".review-comment").length === 2, "review comment was not saved");
-  await waitFor(() => window.document.querySelector("#review-form-status").textContent === "Comment saved.", "review save did not finish");
+  await waitFor(() => window.document.querySelector("#review-live-status").textContent === "Comment saved.", "review save did not finish");
+  assert.equal(reviewCompose.hidden, true);
+  assert.equal(selectionAction.hidden, true);
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#article"), "saved comment did not return focus to the article");
   assert.equal(window.document.querySelectorAll(".review-comment").length, 2);
   assert.deepEqual(
     Array.from(window.document.querySelectorAll(".review-comment"), (comment) => comment.dataset.reviewId),
@@ -243,7 +339,6 @@ function waitFor(test, message) {
     anchor: "install",
     quote: "First pane",
   });
-  assert.equal(window.document.querySelector("#review-form-status").textContent, "Comment saved.");
 
   const openComment = window.document.querySelector('[data-review-id="rc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]');
   assert.equal(openComment.querySelector(".review-status").textContent, "Open");
@@ -251,10 +346,32 @@ function waitFor(test, message) {
   assert.equal(openComment.querySelector(".review-awaiting").textContent, "Awaiting skill reply");
   assert.equal(lastReviewPatch, null);
 
+  window.document.querySelector("#review-button").focus();
+  window.document.querySelector("#review-button").click();
+  await waitFor(() => !window.document.querySelector("#review-panel").hidden, "global comment drawer did not open");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-close"), "comment drawer did not receive focus");
+  assert.match(window.document.querySelector(".review-skill-hint").textContent, /\$docs-authoring/);
+  assert.equal(window.document.querySelector(".topbar").hasAttribute("inert"), true);
+  assert.equal(window.document.querySelector(".shell").hasAttribute("inert"), true);
+
+  const pageCommentButton = window.document.querySelector("#review-page-comment");
+  pageCommentButton.click();
+  await waitFor(() => !reviewCompose.hidden, "page-level comment editor did not open from the drawer");
+  assert.equal(reviewCompose.dataset.placement, "drawer");
+  assert.equal(reviewCompose.getAttribute("role"), "region");
+  assert.equal(window.document.querySelector("#review-selection").hidden, true);
+  assert.equal(pageCommentButton.getAttribute("aria-expanded"), "true");
+  window.document.querySelector("#review-compose-close").click();
+  await waitFor(() => reviewCompose.hidden, "page-level comment editor did not close");
+  await waitFor(() => window.document.activeElement === pageCommentButton, "page-level editor did not restore focus");
+  assert.equal(pageCommentButton.getAttribute("aria-expanded"), "false");
+  assert.equal(reviewCompose.parentElement, window.document.body);
+  assert.equal(window.document.querySelector("#review-panel").hidden, false);
+
   const answeredComment = window.document.querySelector('[data-review-id="rc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]');
   answeredComment.querySelector(".review-status-button").click();
   await waitFor(
-    () => window.document.querySelector("#review-form-status").textContent === "Comment could not be updated. Try again.",
+    () => window.document.querySelector("#review-panel-status").textContent === "Comment could not be updated. Try again.",
     "rejected review transition was not reported",
   );
   assert.equal(answeredComment.querySelector(".review-status").textContent, "Answered");
@@ -292,9 +409,145 @@ function waitFor(test, message) {
   window.getSelection().removeAllRanges();
   window.getSelection().addRange(crossBoundaryRange);
   assert.ok(window.getSelection().toString().length > "First pane".length);
-  window.document.querySelector("#review-button").click();
-  assert.equal(window.document.querySelector("#review-selection").hidden, true);
+  window.document.dispatchEvent(new window.Event("selectionchange"));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(selectionAction.hidden, true);
+
+  selectionRect = { left: 900, top: 180, right: 980, bottom: 202, width: 80, height: 22 };
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(reviewRange);
+  window.document.dispatchEvent(new window.Event("selectionchange"));
+  await waitFor(() => !selectionAction.hidden, "edge selection action did not appear");
+  selectionAction.click();
+  await waitFor(() => !reviewCompose.hidden, "edge contextual editor did not open");
+  assert.equal(reviewCompose.dataset.placement, "sheet");
+  assert.equal(reviewCompose.style.right, "auto");
+  visualOffsetTop = 40;
+  visualViewport.dispatchEvent(new window.Event("resize"));
+  await waitFor(() => parseFloat(reviewCompose.style.top) >= 104, "visual viewport offset was not respected");
+  visualOffsetTop = 0;
+  visualViewport.dispatchEvent(new window.Event("resize"));
+
+  visualWidth = 280;
+  visualHeight = 240;
+  selectionRect = { left: 48, top: 92, right: 104, bottom: 114, width: 56, height: 22 };
+  visualViewport.dispatchEvent(new window.Event("resize"));
+  await waitFor(() => parseFloat(reviewCompose.style.width) <= 280, "sub-320 visual viewport width was clamped upward");
+  const compactSheetTop = parseFloat(reviewCompose.style.top);
+  const compactSheetHeight = parseFloat(reviewCompose.style.maxHeight);
+  assert.ok(compactSheetTop >= 0);
+  assert.ok(compactSheetTop + compactSheetHeight <= 240);
+  assert.ok(parseFloat(reviewCompose.style.left) >= 0);
+  visualWidth = null;
+  visualHeight = null;
+  selectionRect = { left: 900, top: 180, right: 980, bottom: 202, width: 80, height: 22 };
+  visualViewport.dispatchEvent(new window.Event("resize"));
+  window.document.querySelector("#review-compose-cancel").click();
+  await waitFor(() => reviewCompose.hidden, "contextual cancel did not close the editor");
+
+  coarsePointer = true;
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 480 });
+  selectionRect = { left: 120, top: 220, right: 240, bottom: 242, width: 120, height: 22 };
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(reviewRange);
+  window.document.dispatchEvent(new window.Event("selectionchange"));
+  await waitFor(() => !selectionAction.hidden, "mobile selection action did not appear");
+  selectionAction.click();
+  await waitFor(() => !reviewCompose.hidden, "drawer fallback editor did not open");
+  assert.equal(reviewCompose.dataset.placement, "drawer");
+  assert.equal(reviewCompose.getAttribute("role"), "region");
+  assert.equal(reviewCompose.parentElement, window.document.querySelector("#review-panel .review-panel-body"));
+  assert.equal(window.document.querySelector("#review-panel").hidden, false);
+  window.document.querySelector("#review-compose-cancel").click();
+  await waitFor(() => reviewCompose.hidden, "drawer fallback cancel did not close the editor");
+  assert.equal(reviewCompose.parentElement, window.document.body);
+  assert.equal(window.document.querySelector("#review-panel").hidden, false);
   window.document.querySelector("#review-close").click();
+  coarsePointer = false;
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
+  window.getSelection().removeAllRanges();
+  window.document.querySelector("#article").dispatchEvent(new window.Event("pointerup", { bubbles: true }));
+  window.document.dispatchEvent(new window.Event("selectionchange"));
+  await waitFor(() => selectionAction.hidden, "cleared selection action remained visible");
+
+  const restoredSelectionNode = window.document.querySelector('[data-pane="0"] p').firstChild;
+  const restoredSelectionRange = window.document.createRange();
+  restoredSelectionRange.selectNodeContents(restoredSelectionNode);
+  selectionRect = { left: 200, top: 190, right: 320, bottom: 212, width: 120, height: 22 };
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(restoredSelectionRange);
+  window.document.dispatchEvent(new window.Event("selectionchange"));
+  await waitFor(() => !selectionAction.hidden, "route draft selection action did not appear");
+  selectionAction.click();
+  await waitFor(() => !reviewCompose.hidden, "route draft editor did not open");
+  window.document.querySelector("#review-body").value = "Keep this draft across navigation.";
+  window.document.querySelector("#review-body").dispatchEvent(new window.Event("input", { bubbles: true }));
+  window.document.querySelector(".page-link.next").click();
+  await waitFor(() => Boolean(window.document.querySelector(".code-page")), "route-away draft test did not navigate");
+  window.history.back();
+  await waitFor(() => window.document.querySelector("#article h1")?.textContent === "Setup", "route-away draft test did not return");
+  await waitFor(() => !window.document.querySelector("#review-button").hidden, "review feature did not recover after Back");
+  assert.equal(selectionAction.hidden, true);
+  window.document.querySelector("#review-button").click();
+  await waitFor(() => !window.document.querySelector("#review-panel").hidden, "restored draft drawer did not open");
+  window.document.querySelector("#review-page-comment").click();
+  await waitFor(() => !reviewCompose.hidden, "restored route draft did not open");
+  assert.equal(reviewCompose.dataset.placement, "drawer");
+  assert.equal(window.document.querySelector("#review-body").value, "Keep this draft across navigation.");
+  assert.equal(window.document.querySelector("#review-selection-text").textContent, "First pane");
+  assert.equal(window.document.querySelector("#review-selection-anchor").textContent, "#install");
+  window.document.querySelector("#review-compose-cancel").click();
+  await waitFor(() => reviewCompose.hidden, "restored draft Cancel did not close the editor");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-page-comment"), "restored draft Cancel did not restore focus");
+  window.document.querySelector("#review-close").click();
+  await waitFor(() => window.document.querySelector("#review-panel").hidden, "restored draft drawer did not close");
+
+  window.document.querySelector(".page-link.next").click();
+  await waitFor(() => Boolean(window.document.querySelector(".code-page")), "cancelled draft verification did not navigate away");
+  window.history.back();
+  await waitFor(() => window.document.querySelector("#article h1")?.textContent === "Setup", "cancelled draft verification did not return");
+  await waitFor(() => !window.document.querySelector("#review-button").hidden, "review feature did not return after cancelled draft");
+  window.document.querySelector("#review-button").click();
+  window.document.querySelector("#review-page-comment").click();
+  await waitFor(() => !reviewCompose.hidden, "empty page composer did not open after cancelled draft");
+  assert.equal(window.document.querySelector("#review-body").value, "");
+  assert.equal(window.document.querySelector("#review-selection").hidden, true);
+
+  reviewPostDelay = 400;
+  window.document.querySelector("#review-body").value = "Saved while navigating away.";
+  window.document.querySelector("#review-body").dispatchEvent(new window.Event("input", { bubbles: true }));
+  window.document.querySelector("#review-form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
+  window.document.querySelector("#review-close").click();
+  await waitFor(() => window.document.querySelector("#review-panel").hidden, "pending-save drawer did not close");
+  window.document.querySelector(".page-link.next").click();
+  await waitFor(() => Boolean(window.document.querySelector(".code-page")), "pending-save test did not navigate away");
+  window.history.back();
+  await waitFor(() => window.document.querySelector("#article h1")?.textContent === "Setup", "pending-save edit test did not return");
+  await waitFor(() => !window.document.querySelector("#review-button").hidden, "review feature did not return while save was pending");
+  window.document.querySelector("#review-button").click();
+  window.document.querySelector("#review-page-comment").click();
+  await waitFor(() => !reviewCompose.hidden, "pending submitted draft did not reopen");
+  assert.equal(window.document.querySelector("#review-body").value, "Saved while navigating away.");
+  window.document.querySelector("#review-body").value = "A newer draft created before the first save completed.";
+  window.document.querySelector("#review-body").dispatchEvent(new window.Event("input", { bubbles: true }));
+  window.document.querySelector("#review-close").click();
+  await waitFor(() => window.document.querySelector("#review-panel").hidden, "newer-draft drawer did not close");
+  window.document.querySelector(".page-link.next").click();
+  await waitFor(() => Boolean(window.document.querySelector(".code-page")), "newer-draft test did not navigate away");
+  await waitFor(() => reviewPostResponses === 2, "delayed review POST did not complete after newer draft snapshot");
+  window.history.back();
+  await waitFor(() => window.document.querySelector("#article h1")?.textContent === "Setup", "newer-draft test did not return");
+  await waitFor(() => !window.document.querySelector("#review-button").hidden, "review feature did not return after delayed save");
+  window.document.querySelector("#review-button").click();
+  window.document.querySelector("#review-page-comment").click();
+  await waitFor(() => !reviewCompose.hidden, "newer route draft did not reopen");
+  assert.equal(window.document.querySelector("#review-body").value, "A newer draft created before the first save completed.");
+  window.document.querySelector("#review-compose-cancel").click();
+  await waitFor(() => reviewCompose.hidden, "post-race newer composer did not close");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-page-comment"), "post-race newer composer did not restore focus");
+  window.document.querySelector("#review-close").click();
+  await waitFor(() => window.document.querySelector("#review-panel").hidden, "post-race drawer did not close");
+  reviewPostDelay = 25;
 
   failReviewGet = true;
   window.document.querySelector("#review-button").click();
@@ -305,6 +558,8 @@ function waitFor(test, message) {
   failReviewGet = false;
 
   assert.match(appCssSource, /\.review-panel\s*\{[^}]*position:\s*fixed;[^}]*right:\s*0;[^}]*width:\s*min\(29rem,\s*100vw\);/s);
+  assert.match(appCssSource, /\.review-compose\s*\{[^}]*position:\s*fixed;[^}]*width:\s*min\(22rem,/s);
+  assert.match(appCssSource, /\.review-compose\[data-placement="drawer"\]\s*\{[^}]*position:\s*static;/s);
   assert.match(appCssSource, /\.review-scrim\s*\{[^}]*inset:\s*0;/s);
   assert.match(appCssSource, /@media\s*\(max-width:\s*39\.99rem\)[\s\S]*?\.review-panel\s*\{\s*width:\s*100vw;/);
   assert.match(appCssSource, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?animation-duration:\s*0\.01ms\s*!important;/);
