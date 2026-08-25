@@ -357,6 +357,7 @@ function waitFor(test, message) {
   const pageCommentButton = window.document.querySelector("#review-page-comment");
   pageCommentButton.click();
   await waitFor(() => !reviewCompose.hidden, "page-level comment editor did not open from the drawer");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "page-level editor did not receive focus");
   assert.equal(reviewCompose.dataset.placement, "drawer");
   assert.equal(reviewCompose.getAttribute("role"), "region");
   assert.equal(window.document.querySelector("#review-selection").hidden, true);
@@ -420,6 +421,7 @@ function waitFor(test, message) {
   await waitFor(() => !selectionAction.hidden, "edge selection action did not appear");
   selectionAction.click();
   await waitFor(() => !reviewCompose.hidden, "edge contextual editor did not open");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "edge contextual editor did not receive focus");
   assert.equal(reviewCompose.dataset.placement, "sheet");
   assert.equal(reviewCompose.style.right, "auto");
   visualOffsetTop = 40;
@@ -454,6 +456,7 @@ function waitFor(test, message) {
   await waitFor(() => !selectionAction.hidden, "mobile selection action did not appear");
   selectionAction.click();
   await waitFor(() => !reviewCompose.hidden, "drawer fallback editor did not open");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "drawer fallback editor did not receive focus");
   assert.equal(reviewCompose.dataset.placement, "drawer");
   assert.equal(reviewCompose.getAttribute("role"), "region");
   assert.equal(reviewCompose.parentElement, window.document.querySelector("#review-panel .review-panel-body"));
@@ -492,6 +495,7 @@ function waitFor(test, message) {
   await waitFor(() => !window.document.querySelector("#review-panel").hidden, "restored draft drawer did not open");
   window.document.querySelector("#review-page-comment").click();
   await waitFor(() => !reviewCompose.hidden, "restored route draft did not open");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "restored route draft did not receive focus");
   assert.equal(reviewCompose.dataset.placement, "drawer");
   assert.equal(window.document.querySelector("#review-body").value, "Keep this draft across navigation.");
   assert.equal(window.document.querySelector("#review-selection-text").textContent, "First pane");
@@ -510,6 +514,7 @@ function waitFor(test, message) {
   window.document.querySelector("#review-button").click();
   window.document.querySelector("#review-page-comment").click();
   await waitFor(() => !reviewCompose.hidden, "empty page composer did not open after cancelled draft");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "empty page composer did not receive focus");
   assert.equal(window.document.querySelector("#review-body").value, "");
   assert.equal(window.document.querySelector("#review-selection").hidden, true);
 
@@ -527,6 +532,7 @@ function waitFor(test, message) {
   window.document.querySelector("#review-button").click();
   window.document.querySelector("#review-page-comment").click();
   await waitFor(() => !reviewCompose.hidden, "pending submitted draft did not reopen");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "pending submitted draft did not receive focus");
   assert.equal(window.document.querySelector("#review-body").value, "Saved while navigating away.");
   window.document.querySelector("#review-body").value = "A newer draft created before the first save completed.";
   window.document.querySelector("#review-body").dispatchEvent(new window.Event("input", { bubbles: true }));
@@ -542,9 +548,12 @@ function waitFor(test, message) {
   window.document.querySelector("#review-page-comment").click();
   await waitFor(() => !reviewCompose.hidden, "newer route draft did not reopen");
   assert.equal(window.document.querySelector("#review-body").value, "A newer draft created before the first save completed.");
+  await waitFor(() => window.document.activeElement === window.document.querySelector("#review-body"), "newer route draft did not receive focus");
   window.document.querySelector("#review-compose-cancel").click();
   await waitFor(() => reviewCompose.hidden, "post-race newer composer did not close");
   await waitFor(() => window.document.activeElement === window.document.querySelector("#review-page-comment"), "post-race newer composer did not restore focus");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(window.document.activeElement, window.document.querySelector("#review-page-comment"));
   window.document.querySelector("#review-close").click();
   await waitFor(() => window.document.querySelector("#review-panel").hidden, "post-race drawer did not close");
   reviewPostDelay = 25;

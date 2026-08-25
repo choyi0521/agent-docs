@@ -73,6 +73,8 @@
       reviewAvailable: false,
       reviewComments: [],
       reviewActionBox: null,
+      reviewFocusGeneration: 0,
+      reviewFocusTimer: 0,
       reviewComposeReturnFocus: null,
       reviewController: null,
       reviewContext: null,
@@ -1239,6 +1241,7 @@
     }
 
     function closeReview(restoreFocus) {
+      cancelReviewFocus();
       if (elements.reviewPanel.hidden) { return; }
       if (elements.reviewCompose.parentNode === elements.reviewPanelBody) {
         closeReviewCompose(false, !reviewComposerIsDirty(), false);
@@ -1645,8 +1648,34 @@
       window.requestAnimationFrame(function () { elements.reviewLiveStatus.textContent = message || ""; });
     }
 
+    function cancelReviewFocus() {
+      state.reviewFocusGeneration += 1;
+      if (!state.reviewFocusTimer) { return; }
+      window.clearTimeout(state.reviewFocusTimer);
+      state.reviewFocusTimer = 0;
+    }
+
+    function scheduleReviewFocus(target, condition) {
+      cancelReviewFocus();
+      var generation = state.reviewFocusGeneration;
+      state.reviewFocusTimer = window.setTimeout(function () {
+        if (generation !== state.reviewFocusGeneration) { return; }
+        state.reviewFocusTimer = 0;
+        if (!condition || condition()) { target.focus(); }
+      }, 0);
+    }
+
+    function scheduleReviewReturnFocus(target) {
+      cancelReviewFocus();
+      var generation = state.reviewFocusGeneration;
+      window.requestAnimationFrame(function () {
+        if (generation === state.reviewFocusGeneration) { target.focus({ preventScroll: true }); }
+      });
+    }
+
     function closeReviewCompose(restoreFocus, reset, hideAction) {
       var wasOpen = !elements.reviewCompose.hidden;
+      cancelReviewFocus();
       elements.reviewCompose.hidden = true;
       elements.reviewSelectionAction.setAttribute("aria-expanded", "false");
       restoreReviewComposeHome();
@@ -1664,7 +1693,7 @@
           : !elements.reviewPanel.hidden
             ? elements.reviewClose
             : !elements.reviewSelectionAction.hidden ? elements.reviewSelectionAction : elements.article;
-        window.requestAnimationFrame(function () { target.focus({ preventScroll: true }); });
+        scheduleReviewReturnFocus(target);
       }
       state.reviewComposeReturnFocus = null;
     }
@@ -1705,7 +1734,7 @@
       elements.reviewCompose.hidden = false;
       elements.reviewSelectionAction.setAttribute("aria-expanded", "true");
       if (elements.reviewCompose.parentNode !== elements.reviewPanelBody) { positionReviewCompose(); }
-      window.setTimeout(function () { elements.reviewBody.focus(); }, 0);
+      scheduleReviewFocus(elements.reviewBody, function () { return !elements.reviewCompose.hidden; });
     }
 
     function openPageReviewCompose() {
@@ -1721,7 +1750,9 @@
       mountReviewComposeInDrawer();
       elements.reviewCompose.hidden = false;
       state.reviewComposeReturnFocus = elements.reviewPageComment;
-      window.setTimeout(function () { elements.reviewBody.focus(); }, 0);
+      scheduleReviewFocus(elements.reviewBody, function () {
+        return !elements.reviewCompose.hidden && !elements.reviewPanel.hidden;
+      });
     }
 
     function dismissReviewComposeWithEscape() {
@@ -1773,9 +1804,9 @@
       elements.reviewButton.setAttribute("aria-expanded", "true");
       document.body.classList.add("review-open");
       setReviewBackgroundInert(true);
-      window.setTimeout(function () {
-        (composeWasOpen ? elements.reviewBody : elements.reviewClose).focus();
-      }, 0);
+      scheduleReviewFocus(composeWasOpen ? elements.reviewBody : elements.reviewClose, function () {
+        return !elements.reviewPanel.hidden && (!composeWasOpen || !elements.reviewCompose.hidden);
+      });
     }
 
     function hideReviewFeature(focusFallback) {
@@ -1920,6 +1951,7 @@
     }
 
     function openSidebar() {
+      cancelReviewFocus();
       document.body.classList.add("nav-open");
       elements.scrim.hidden = false;
       elements.menuButton.setAttribute("aria-expanded", "true");
@@ -1943,6 +1975,7 @@
     }
 
     function openSearch() {
+      cancelReviewFocus();
       if (typeof elements.searchDialog.showModal === "function") {
         if (!elements.searchDialog.open) { elements.searchDialog.showModal(); }
       } else {
