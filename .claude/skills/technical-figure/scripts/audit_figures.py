@@ -33,10 +33,22 @@ REQUIRED_INTENT_STRINGS = (
     "question",
     "claim",
     "subject",
-    "threeSecondTakeaway",
     "caption",
 )
-DECOMPOSITION_FIELDS = ("subject", "action", "constraint", "state", "outcome")
+TAKEAWAY_FIELDS = ("immediateTakeaway", "threeSecondTakeaway")
+# What shape of figure a bundle is. The field is optional, because bundles
+# predate it. A bundle that does declare it is held to this closed list, so the
+# vocabulary is one decision the space makes rather than one each author makes
+# alone. Adding a word here is how the list grows.
+FIGURE_KINDS = (
+    "contrast",
+    "decision",
+    "fan-out",
+    "flow",
+    "layout",
+    "state",
+    "timeline",
+)
 REQUIRED_ELEMENT_STRINGS = (
     "id",
     "meaning",
@@ -45,37 +57,22 @@ REQUIRED_ELEMENT_STRINGS = (
     "whyThisEncoding",
     "removalLoss",
 )
-VERB_ROLES = frozenset({"action", "relationship"})
 CORE_REVIEW_CHECKS = (
-    "threeSecond",
     "labelSwap",
     "labelOff",
     "pointAndExplain",
     "ablation",
     "counterfactual",
     "thumbnail",
-    "articleTypography",
     "grayscale",
     "proseDependency",
     "sourceTruth",
 )
+REVIEW_ALIASES = {
+    "firstRead": ("firstRead", "threeSecond"),
+    "hostReadability": ("hostReadability", "articleTypography"),
+}
 CONDITIONAL_REVIEW_CHECKS = ("arrowVerb", "boundary", "trace")
-BLIND_RECOVERY_FIELDS = ("claim", "subject", "action", "constraint", "status")
-ALLOWED_ROLES = frozenset(
-    {
-        "subject",
-        "action",
-        "relationship",
-        "constraint",
-        "state",
-        "boundary",
-        "quantity",
-        "sequence",
-        "evidence",
-        "accessibility",
-        "context",
-    }
-)
 STABLE_ID = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 NON_IDENTIFYING_REVIEWER_LABEL = re.compile(
     r"^(?:anonymous|blind|independent|review-session)(?:-[a-z0-9]+)*$"
@@ -283,21 +280,16 @@ _MARKDOWN_EXPLICIT_ID = re.compile(r"\s*\{#([\w-]+)\}\s*$")
 _LINE_LOCATOR = re.compile(r"L(\d+)(?:-L(\d+))?")
 _SOURCE_MARKER = r"docs\s*:\s*(?:begin|end)\s+{}(?:\s|$)"
 
-# This neutral default approximates a 44rem prose column at the browser default.
-# Callers should pass the measured host width. The lint deliberately rejects
-# only extreme failures; the authoring target remains body-sized text.
+# A neutral 44rem prose column is used only to resolve SVG sizing declarations.
+# Callers can pass the measured host width; host-page review owns readability
+# and hierarchy judgments.
 DEFAULT_ARTICLE_WIDTH_PX = 704.0
-MIN_EGREGIOUS_RENDERED_FONT_PX = 11.5
-MAX_EGREGIOUS_TYPE_SIZES = 3
-MAX_VISIBLE_TEXT_WORDS = 16
-MAX_VISIBLE_TEXT_CHARACTERS = 120
 _CSS_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _CSS_LENGTH = re.compile(
     r"^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*(px|pt|em|rem|%)?$",
     re.IGNORECASE,
 )
 _SVG_NUMBER = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
-_SEMANTIC_TOKEN = re.compile(r"[^a-z0-9]+")
 _PRIVATE_HOST_LABELS = frozenset(
     {"corp", "home", "internal", "intranet", "lan", "local", "private"}
 )
@@ -777,6 +769,36 @@ class _FigureHtmlParser(HTMLParser):
 
 def _is_nonempty_string(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
+
+
+def _has_declared_content(value: Any) -> bool:
+    """Return whether a free-form ledger value records any concrete content."""
+
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return bool(value) and any(
+            _has_declared_content(item) for item in value.values()
+        )
+    if isinstance(value, list):
+        return bool(value) and any(_has_declared_content(item) for item in value)
+    return value is not None
+
+
+def _contains_nonempty_text(value: Any) -> bool:
+    """Return whether a free-form review response contains explanatory text."""
+
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return any(_contains_nonempty_text(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_nonempty_text(item) for item in value)
+    return False
+
+
+def _normalized_text(value: str) -> str:
+    return " ".join(value.split())
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -1501,11 +1523,6 @@ def _collect_svg_text_samples(
     return samples, min(display_widths), sorted(set(issues))
 
 
-def _semantic_tokens(element: ET.Element) -> set[str]:
-    values = f"{element.get('id', '')} {element.get('class', '')}".lower()
-    return {item for item in _SEMANTIC_TOKEN.split(values) if item}
-
-
 def _validate_css_style_scope(
     *,
     css: str,
@@ -2173,89 +2190,48 @@ def _validate_evidence(
                 )
 
 
-def _validate_typography_exception(
-    *,
-    intent: dict[str, Any],
-    bundle: Path,
-    repo_root: Path,
-    diagnostics: list[Diagnostic],
-) -> bool:
-    """Validate the uncommon evidence-backed need for more than two type sizes."""
-
-    if "typographyException" not in intent:
-        return False
-    exception = intent.get("typographyException")
-    if not isinstance(exception, dict):
-        _add(
-            diagnostics,
-            bundle,
-            "typography-exception.type",
-            "typographyException must be an object when present",
-        )
-        return False
-
-    valid_reason = _is_nonempty_string(exception.get("reason"))
-    if not valid_reason:
-        _add(
-            diagnostics,
-            bundle,
-            "typography-exception.reason",
-            "typographyException.reason must state the semantic need for extra sizes",
-        )
-    evidence = exception.get("evidence")
-    _validate_evidence(
-        evidence=evidence,
-        element_label="typographyException",
-        bundle=bundle,
-        repo_root=repo_root,
-        diagnostics=diagnostics,
-    )
-    valid_evidence_shape = (
-        isinstance(evidence, list)
-        and bool(evidence)
-        and all(_is_nonempty_string(item) for item in evidence)
-    )
-    return valid_reason and valid_evidence_shape
-
-
 def _validate_decomposition(
     intent: dict[str, Any], bundle: Path, diagnostics: list[Diagnostic]
 ) -> None:
     decomposition = intent.get("decomposition")
-    if not isinstance(decomposition, dict):
+    if not isinstance(decomposition, (dict, list)) or not _has_declared_content(
+        decomposition
+    ):
         _add(
             diagnostics,
             bundle,
             "intent.decomposition",
-            "decomposition must be an object",
+            (
+                "decomposition must be a non-empty object or array containing "
+                "only the semantic facts that apply"
+            ),
         )
-        return
-    for field in DECOMPOSITION_FIELDS:
-        if not _is_nonempty_string(decomposition.get(field)):
-            _add(
-                diagnostics,
-                bundle,
-                "decomposition.field",
-                f"decomposition.{field} must be a non-empty string",
-            )
 
 
 def _validate_compositions(
     intent: dict[str, Any], bundle: Path, diagnostics: list[Diagnostic]
 ) -> None:
-    raw_compositions = intent.get("labelFreeCompositions")
+    composition_field = (
+        "compositions" if "compositions" in intent else "labelFreeCompositions"
+    )
+    raw_compositions = intent.get(composition_field)
     candidate_ids: set[str] = set()
-    if not isinstance(raw_compositions, list) or len(raw_compositions) < 2:
+    if not isinstance(raw_compositions, list) or not raw_compositions:
         _add(
             diagnostics,
             bundle,
             "composition.candidates",
-            "labelFreeCompositions must contain at least two candidate objects",
+            (
+                "compositions must contain at least the selected composition; "
+                "record alternatives only when they informed the decision"
+            ),
         )
-        raw_compositions = raw_compositions if isinstance(raw_compositions, list) else []
+        raw_compositions = (
+            raw_compositions if isinstance(raw_compositions, list) else []
+        )
 
     for index, composition in enumerate(raw_compositions):
-        label = f"labelFreeCompositions[{index}]"
+        label = f"{composition_field}[{index}]"
         if not isinstance(composition, dict):
             _add(
                 diagnostics,
@@ -2286,7 +2262,7 @@ def _validate_compositions(
                     diagnostics,
                     bundle,
                     "composition.id-duplicate",
-                    f"duplicate label-free composition id {composition_id!r}",
+                    f"duplicate composition id {composition_id!r}",
                 )
             else:
                 candidate_ids.add(composition_id)
@@ -2321,7 +2297,7 @@ def _validate_compositions(
             bundle,
             "composition.selected-unknown",
             (
-                "selectedComposition.id must reference a labelFreeCompositions "
+                "selectedComposition.id must reference a declared composition "
                 f"candidate: {selected_id.strip()!r}"
             ),
         )
@@ -2470,6 +2446,15 @@ def _validate_review(
             bundle=bundle,
             diagnostics=diagnostics,
         )
+    for name, aliases in REVIEW_ALIASES.items():
+        value = next((review.get(alias) for alias in aliases if alias in review), None)
+        _validate_review_entry(
+            name=name,
+            value=value,
+            conditional=False,
+            bundle=bundle,
+            diagnostics=diagnostics,
+        )
     for name in CONDITIONAL_REVIEW_CHECKS:
         _validate_review_entry(
             name=name,
@@ -2529,23 +2514,36 @@ def _validate_review(
                 "or review-session-"
             ),
         )
+    for field in ("rendering", "prompt"):
+        value = blind_review.get(field)
+        if field == "rendering" and field not in blind_review:
+            value = blind_review.get("artifact")  # Existing public bundles.
+        if not _is_nonempty_string(value):
+            requirement = (
+                "the exact non-leading prompt"
+                if field == "prompt"
+                else f"the {field} provenance"
+            )
+            _add(
+                diagnostics,
+                bundle,
+                f"blind-review.{field}",
+                (
+                    f"review.blindReview.{field} must record {requirement} "
+                    "as a non-empty string"
+                ),
+            )
     recovered = blind_review.get("recovered")
-    if not isinstance(recovered, dict):
+    if not _contains_nonempty_text(recovered):
         _add(
             diagnostics,
             bundle,
             "blind-review.recovered",
-            "review.blindReview.recovered must be an object",
+            (
+                "review.blindReview.recovered must contain the reviewer's free "
+                "reading as text; no preset semantic fields are required"
+            ),
         )
-    else:
-        for field in BLIND_RECOVERY_FIELDS:
-            if not _is_nonempty_string(recovered.get(field)):
-                _add(
-                    diagnostics,
-                    bundle,
-                    "blind-review.field",
-                    f"review.blindReview.recovered.{field} must be non-empty",
-                )
     if not _is_nonempty_string(blind_review.get("comparison")):
         _add(
             diagnostics,
@@ -2561,8 +2559,8 @@ def _validate_intent(
     bundle: Path,
     repo_root: Path,
     diagnostics: list[Diagnostic],
-) -> tuple[dict[str, str], bool]:
-    """Validate intent and return SVG ids plus an extra-type-scale allowance."""
+) -> dict[str, str]:
+    """Validate the declared ledger structure and return mapped SVG ids."""
 
     if type(intent.get("version")) is not int or intent.get("version") != 1:
         _add(
@@ -2587,15 +2585,31 @@ def _validate_intent(
                 "intent.field",
                 f"{field} must be a non-empty string",
             )
+    if not any(_is_nonempty_string(intent.get(field)) for field in TAKEAWAY_FIELDS):
+        _add(
+            diagnostics,
+            bundle,
+            "intent.takeaway",
+            (
+                "immediateTakeaway must be a non-empty string; "
+                "threeSecondTakeaway remains accepted for existing bundles"
+            ),
+        )
+    if "kind" in intent:
+        kind = intent.get("kind")
+        if not _is_nonempty_string(kind) or kind.strip() not in FIGURE_KINDS:
+            _add(
+                diagnostics,
+                bundle,
+                "intent.kind",
+                (
+                    "kind is optional; when present it must be one of "
+                    + ", ".join(FIGURE_KINDS)
+                ),
+            )
 
     _validate_decomposition(intent, bundle, diagnostics)
     _validate_compositions(intent, bundle, diagnostics)
-    has_typography_exception = _validate_typography_exception(
-        intent=intent,
-        bundle=bundle,
-        repo_root=repo_root,
-        diagnostics=diagnostics,
-    )
 
     raw_elements = intent.get("elements")
     element_ids: set[str] = set()
@@ -2653,30 +2667,12 @@ def _validate_intent(
             else:
                 element_ids.add(element_id)
 
-        role = element.get("role")
-        if _is_nonempty_string(role) and role.strip() not in ALLOWED_ROLES:
-            _add(
-                diagnostics,
-                bundle,
-                "element.role",
-                (
-                    f"{element_label}.role {role!r} is not allowed; choose one of: "
-                    + ", ".join(sorted(ALLOWED_ROLES))
-                ),
-            )
-        if (
-            _is_nonempty_string(role)
-            and role.strip() in VERB_ROLES
-            and not _is_nonempty_string(element.get("verb"))
-        ):
+        if "verb" in element and not _is_nonempty_string(element.get("verb")):
             _add(
                 diagnostics,
                 bundle,
                 "element.verb",
-                (
-                    f"{element_label}.verb must be non-empty for "
-                    f"role {role.strip()!r}"
-                ),
+                f"{element_label}.verb must be non-empty when present",
             )
 
         _validate_evidence(
@@ -2760,11 +2756,14 @@ def _validate_intent(
     _validate_representative_trace(intent, element_ids, bundle, diagnostics)
     _validate_review(intent, bundle, diagnostics)
 
-    return svg_ids, has_typography_exception
+    return svg_ids
 
 
 def _validate_html(
-    bundle: Path, repo_root: Path, diagnostics: list[Diagnostic]
+    bundle: Path,
+    repo_root: Path,
+    diagnostics: list[Diagnostic],
+    intent_caption: str | None = None,
 ) -> None:
     html_path = _bundle_file(
         path=bundle / "figure.html",
@@ -2857,13 +2856,26 @@ def _validate_html(
             "caption.hidden",
             "figure.html contains figcaption only in hidden content",
         )
-    elif not any(" ".join(caption.text_parts).strip() for caption in visible_captions):
-        _add(
-            diagnostics,
-            bundle,
-            "caption.empty",
-            "the visible figcaption in figure.html must contain text",
-        )
+    else:
+        visible_caption_text = [
+            _normalized_text(" ".join(caption.text_parts))
+            for caption in visible_captions
+            if _normalized_text(" ".join(caption.text_parts))
+        ]
+        if not visible_caption_text:
+            _add(
+                diagnostics,
+                bundle,
+                "caption.empty",
+                "the visible figcaption in figure.html must contain text",
+            )
+        elif intent_caption is not None and intent_caption not in visible_caption_text:
+            _add(
+                diagnostics,
+                bundle,
+                "caption.intent-mismatch",
+                "the visible figcaption must match figure-intent.json caption",
+            )
 
     referenced_output_figures: set[int] = set()
     for figure_index, reference in parser.asset_references:
@@ -3300,10 +3312,9 @@ def _validate_svg_typography(
     root: ET.Element,
     bundle: Path,
     article_width_px: float,
-    allow_extended_type_scale: bool,
     diagnostics: list[Diagnostic],
 ) -> None:
-    """Reject measurable SVG typography extremes without claiming visual proof."""
+    """Require a structurally measurable SVG text layout without judging it."""
 
     collected = _collect_svg_text_samples(root, article_width_px)
     if collected is None:
@@ -3314,7 +3325,7 @@ def _validate_svg_typography(
             "SVG display scale cannot be derived from its width/viewBox",
         )
         return
-    samples, display_width, typography_issues = collected
+    _, _, typography_issues = collected
     for issue in typography_issues:
         _add(
             diagnostics,
@@ -3322,132 +3333,6 @@ def _validate_svg_typography(
             "svg.typography-unverifiable",
             issue,
         )
-    if not samples:
-        return
-
-    smallest = min(samples, key=lambda item: item.rendered_font_px)
-    if smallest.rendered_font_px < MIN_EGREGIOUS_RENDERED_FONT_PX:
-        _add(
-            diagnostics,
-            bundle,
-            "svg.text-too-small",
-            (
-                f"visible text {smallest.text!r} is estimated at "
-                f"{smallest.rendered_font_px:.1f}px when the SVG fits a "
-                f"{display_width:.0f}px article slot; keep ordinary labels near "
-                "15.5-16px and do not let any visible label become footnote-sized"
-            ),
-        )
-
-    # Half-pixel buckets avoid treating harmless exporter rounding as a new size.
-    type_sizes = sorted(
-        {round(sample.rendered_font_px * 2.0) / 2.0 for sample in samples}
-    )
-    if (
-        len(type_sizes) > MAX_EGREGIOUS_TYPE_SIZES
-        and not allow_extended_type_scale
-    ):
-        _add(
-            diagnostics,
-            bundle,
-            "svg.type-scale",
-            (
-                f"visible SVG text uses {len(type_sizes)} estimated rendered sizes "
-                f"({', '.join(f'{size:g}px' for size in type_sizes)}); ordinary "
-                "technical figures should use one label size and at most one "
-                "emphasis size. A rare semantic exception requires an evidence-backed "
-                "typographyException in figure-intent.json"
-            ),
-        )
-
-    visible_title_markers = sorted(
-        {
-            sample.text
-            for sample in samples
-            if _semantic_tokens(sample.element).intersection(
-                {"title", "heading", "header"}
-            )
-        }
-    )
-    if visible_title_markers:
-        _add(
-            diagnostics,
-            bundle,
-            "svg.visible-title",
-            (
-                "visible SVG text is marked as a title or heading "
-                f"({visible_title_markers[0]!r}); keep visible titles in the host "
-                "heading or caption while retaining only the non-visible accessible "
-                "SVG <title> and <desc>"
-            ),
-        )
-
-    ordered_sizes = sorted(sample.rendered_font_px for sample in samples)
-    middle = len(ordered_sizes) // 2
-    median_size = (
-        ordered_sizes[middle]
-        if len(ordered_sizes) % 2
-        else (ordered_sizes[middle - 1] + ordered_sizes[middle]) / 2.0
-    )
-    title_like = [
-        sample
-        for sample in samples
-        if len(re.findall(r"\b\w[\w'’-]*\b", sample.text, re.UNICODE)) >= 8
-        and sample.rendered_font_px >= max(15.0, median_size * 1.45)
-    ]
-    if title_like and not visible_title_markers:
-        _add(
-            diagnostics,
-            bundle,
-            "svg.visible-heading",
-            (
-                f"visible text {title_like[0].text!r} has the size and length of an "
-                "in-diagram heading; move the conclusion to the host heading or caption"
-            ),
-        )
-
-    parent_map = {child: parent for parent in root.iter() for child in parent}
-    prose_runs: list[str] = []
-    legend_runs: list[str] = []
-    for element in root.iter():
-        if _local_name(element.tag) != "text":
-            continue
-        if _svg_element_is_hidden(element, parent_map):
-            continue
-        full_text = " ".join(" ".join(element.itertext()).split())
-        if not full_text:
-            continue
-        word_count = len(re.findall(r"\b\w[\w'’-]*\b", full_text, re.UNICODE))
-        if (
-            word_count > MAX_VISIBLE_TEXT_WORDS
-            or len(full_text) > MAX_VISIBLE_TEXT_CHARACTERS
-        ):
-            prose_runs.append(full_text)
-        if word_count >= 8 and "=" in full_text and ("|" in full_text or ";" in full_text):
-            legend_runs.append(full_text)
-
-    if prose_runs:
-        _add(
-            diagnostics,
-            bundle,
-            "svg.text-prose",
-            (
-                f"visible SVG text run {prose_runs[0]!r} is paragraph-length; "
-                "keep short names in the drawing and move explanation to prose, "
-                "the caption, or a table"
-            ),
-        )
-    if legend_runs:
-        _add(
-            diagnostics,
-            bundle,
-            "svg.long-legend",
-            (
-                f"visible SVG text run {legend_runs[0]!r} behaves as a long legend; "
-                "prefer direct labels or move the key outside the mechanism"
-            ),
-        )
-
 
 def _validate_svg_active_content(
     *,
@@ -3648,7 +3533,6 @@ def _validate_svg(
     repo_root: Path,
     svg_ids_from_intent: dict[str, str],
     article_width_px: float,
-    allow_extended_type_scale: bool,
     diagnostics: list[Diagnostic],
 ) -> None:
     svg_path = _bundle_file(
@@ -3729,7 +3613,6 @@ def _validate_svg(
         root=root,
         bundle=bundle,
         article_width_px=article_width_px,
-        allow_extended_type_scale=allow_extended_type_scale,
         diagnostics=diagnostics,
     )
 
@@ -3884,22 +3767,29 @@ def audit_bundle(
 
     intent = _load_intent(bundle, repo_root, diagnostics)
     svg_ids: dict[str, str] = {}
-    allow_extended_type_scale = False
+    intent_caption: str | None = None
     if intent is not None:
-        svg_ids, allow_extended_type_scale = _validate_intent(
+        svg_ids = _validate_intent(
             intent=intent,
             bundle=bundle,
             repo_root=repo_root,
             diagnostics=diagnostics,
         )
+        raw_caption = intent.get("caption")
+        if _is_nonempty_string(raw_caption):
+            intent_caption = _normalized_text(raw_caption)
 
-    _validate_html(bundle, repo_root, diagnostics)
+    _validate_html(
+        bundle,
+        repo_root,
+        diagnostics,
+        intent_caption=intent_caption,
+    )
     _validate_svg(
         bundle=bundle,
         repo_root=repo_root,
         svg_ids_from_intent=svg_ids,
         article_width_px=article_width_px,
-        allow_extended_type_scale=allow_extended_type_scale,
         diagnostics=diagnostics,
     )
     return diagnostics
@@ -3925,8 +3815,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_ARTICLE_WIDTH_PX,
         help=(
-            "normal shrink-to-fit article slot used for the conservative SVG "
-            f"typography estimate (default: {DEFAULT_ARTICLE_WIDTH_PX:g})"
+            "normal shrink-to-fit article slot used to resolve SVG sizing "
+            f"declarations (default: {DEFAULT_ARTICLE_WIDTH_PX:g})"
         ),
     )
     return parser

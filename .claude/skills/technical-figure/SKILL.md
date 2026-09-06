@@ -23,17 +23,19 @@ problem concerns meaning, hierarchy, or design rather than only export format.
 ## Model the claim before drawing
 
 1. Read the host page, its truth sources, and nearby figures.
-2. Write one reader question and one declarative three-second takeaway.
-3. Decompose the claim into `subject`, `action`, `constraint`, `state`, and
-   `outcome`. Mark any absent, partial, planned, or deliberately schematic fact.
+2. Write one reader question and one declarative immediate takeaway.
+3. Decompose the claim into only the facts, relationships, limits, and status
+   distinctions that actually apply. Do not invent a category to satisfy a
+   template. Mark any absent, partial, planned, or deliberately schematic fact.
 4. Choose one representative entity to trace when the claim involves flow or
    change.
 5. Decide whether a figure removes mental reconstruction better than prose, a
    table, or a worked example. Do not make a figure merely to add visual variety.
-6. For every new or changed figure bundle, sketch two materially different,
-   label-free compositions. Select the one whose geometry exposes the relation
-   with less explanation. Add labels only after this choice. Untouched legacy
-   bundles are exempt until they change.
+6. When more than one semantic form is plausible, compare materially different
+   label-free compositions. Record the selected form and why its geometry needs
+   less interpretation; do not manufacture alternatives to satisfy a count.
+   Add labels only after this choice. Unchanged bundles are exempt until they
+   change.
 
 If changing only the labels would make the same composition explain an
 unrelated topic, redesign it.
@@ -71,6 +73,15 @@ Copy [the intent-ledger template](assets/figure-intent.template.json) beside the
 editable source as `figure-intent.json`. Complete it before polishing the
 figure.
 
+Record `kind`, which names the shape of the figure. The field is optional,
+because bundles predate it, and the template's placeholder is not a valid
+value, so a bundle started from the template either names its kind or deletes
+the line. The declared kinds are `contrast`, `decision`, `fan-out`, `flow`,
+`layout`, `state`, and `timeline`. A bundle that declares any other word is
+refused. Growing that list is an edit to `FIGURE_KINDS` in
+`scripts/audit_figures.py`, so the vocabulary stays one decision rather than
+one per author.
+
 Give every logical element a stable semantic id. Record its meaning, role,
 encoding choice, why that encoding is direct, evidence, and the information lost
 if it is removed. Include connector classes, boundaries, status encodings,
@@ -79,23 +90,22 @@ just named nodes. Map those ids to the source where the format supports ids.
 Incidental renderer strokes are not logical elements and do not need ledger
 entries.
 
-Use only these ledger roles: `subject`, `action`, `relationship`, `constraint`,
-`state`, `boundary`, `quantity`, `sequence`, `evidence`, `accessibility`, and
-`context`. Record an outcome by the kind of fact it presents, usually `state` or
-`relationship`, rather than inventing an `outcome` role.
+Name each ledger role by the fact that the element contributes. The role
+vocabulary is open; do not use a drawing primitive as the role merely because
+the element happens to be rendered with that primitive.
 
-Every element must record `whyThisEncoding`. Every `action` and `relationship`
-element must also record exactly one `verb`; a connector class cannot carry
-several relations. Every enclosing shape must name the real boundary it
-represents. Never let the same arrow mean dependency, call order, data movement,
-validation, and future work.
+Every element must record `whyThisEncoding`. For every connector class or
+visible transition, record the one relation that it represents; split the class
+when the meaning changes. Every enclosing shape must name the real boundary it
+represents. Do not reuse one connector style for unrelated meanings.
 
 The template intentionally starts trace and review statuses at `pending`, which
 the audit must reject. Complete `representativeTrace` as either `pass` with an
 entity and existing element ids in `steps`, or `not-applicable` with a reason.
-Complete each core review as `pass` with an observation. Only `arrowVerb`,
-`boundary`, and `trace` may be `not-applicable`, each with a reason. A new or
-changed bundle cannot pass with a pending or failed blind review. Keep
+Complete each core review as `pass` with an observation. A conditional review
+may be `not-applicable` only when its mechanism is genuinely absent and the
+ledger records why. A new or changed bundle cannot pass with a pending or
+failed blind review. Keep
 `review.trace` consistent with `representativeTrace`; when a review fails,
 redesign and leave the ledger unaccepted until a fresh review passes.
 
@@ -121,22 +131,20 @@ mapped to ids, so its ledger and rendered review are the coverage evidence.
 - Prefer focused figures over a poster. Move lookup detail to a table or prose.
 - Keep exact identifiers subordinate to the visual explanation. Do not put
   paragraphs inside nodes.
+- Make each visible label resolve the identity or relationship at its mark
+  without forcing the reader to guess. Keep it locally scannable, but do not
+  shorten it until the mark becomes ambiguous. Put explanation that applies to
+  the whole figure in the caption or host prose.
 - Design typography at the **final rendered article size**, not at the source
-  canvas size or in a zoomed editor. Measure the surrounding body copy in the
-  actual host and size ordinary visible labels to read like it. If the host
-  cannot be measured during authoring, use a neutral `16px` preview fallback,
-  then re-check the final rendered host before acceptance. Use one ordinary
-  label size and at most one restrained emphasis size in a normal technical
-  figure. More sizes require a source-backed reason recorded as
-  `typographyException` in the intent ledger; visual variety is not a reason.
-- Keep every visible label comfortably readable at the real display size. Treat
-  `12px` as an emergency structural floor, not a design target. Axis ticks or
-  spatial annotations may be subordinate, but they must still pass the rendered
-  host-page review; raster or Blender output is not exempt from legibility.
-- Keep the page heading, figure title, conclusion, and explanatory prose outside
-  the drawing. The SVG must retain its non-visible accessible `<title>` and
-  `<desc>`, but the visible mechanism should contain short names only. Replace a
-  long legend with direct labels, a caption, prose, or a separate lookup table.
+  canvas size or in a zoomed editor. Compare visible labels with the host's body
+  copy and give every distinct typographic treatment a clear semantic job.
+- Keep every visible label comfortably readable at every supported display
+  size. Subordinate annotations must still pass the rendered host-page review;
+  raster or Blender output is not exempt from legibility.
+- Keep whole-figure explanation in the host heading, caption, or prose. The SVG
+  must retain its non-visible accessible `<title>` and `<desc>`. Use direct local
+  labels when they reduce lookup work, and move material that readers must read
+  as a separate explanation outside the drawing.
 - Author close to the host's real article width. If the truth genuinely needs a
   wider canvas, split it into focused figures or make the host preserve the
   authored size with horizontal scrolling. Never shrink a wide poster until its
@@ -210,29 +218,25 @@ implicit repository scan decide the change scope:
 python -B _agents/skills/technical-figure/scripts/audit_figures.py --repo-root . --bundle <figure-directory> [--bundle <figure-directory> ...]
 ```
 
-The SVG typography estimate defaults to a neutral `704px` article slot. Pass
-`--article-width-px <measured-width>` with the actual host width whenever it is
-known. This option models shrink-to-fit output; an
-intentionally scroll-preserved wider figure still requires inspection in its
-real host because a bundle audit cannot prove the host CSS.
+The audit uses a neutral `704px` article slot to resolve SVG sizing declarations.
+Pass `--article-width-px <measured-width>` when the host width is known. This
+structural calculation does not establish readability or prove host CSS.
 
 This audit supplies structural evidence only: required files, intent shape,
-declared source paths, accessible metadata, declared output ids, and a
-conservative SVG typography estimate at the repository's ordinary article
-width. It rejects measurable extremes such as footnote-sized rendered text,
-an excessive type scale, visible title markers, and paragraph-length text runs.
-CSS, transforms, raster labels, responsive hosts, and deliberate scrolling can
-make that estimate incomplete. A passing audit is never proof that the claim is
+declared source paths, accessible metadata, declared output ids, caption
+agreement, and review provenance. It does not infer meaning, prose quality,
+legibility, or hierarchy from wording, punctuation, element names, font sizes,
+or fixed numeric thresholds. A passing audit is never proof that the claim is
 true, the composition communicates it, every label is readable, or every
 rendered logical element is represented. Source review, host-page inspection,
 and blind review remain mandatory.
 
 1. Rebuild from the committed source in a clean or temporary output directory.
 2. Inspect the actual SVG, PNG, and host page, not only a successful process.
-3. At normal and narrow article widths, compare visible label size with body
-   text and record the actual CSS display width, smallest visible label size,
-   and number of visible type sizes in `review.articleTypography`. Also inspect
-   both themes when colors inherit.
+3. Inspect every supported article layout, compare visible labels with body
+   text, and record the display contexts and observations in
+   `review.hostReadability` or the compatible `review.articleTypography` field.
+   Also inspect every theme on which colors depend.
 4. Confirm quantities, order, coordinates, boundaries, connectors, and status
    claims against their recorded authority.
 5. Rebuild and compare bytes or semantic output when determinism is required.
@@ -253,7 +257,7 @@ Run these tests on the rendered figure at its real display size. A failed core
 test requires redesign, not another explanatory paragraph. Mark a conditional
 test not applicable only with a reason in the intent ledger.
 
-- **Three-second:** The primary subject, contrast, and conclusion appear before
+- **First-read:** The primary subject, contrast, and conclusion appear before
   detail.
 - **Label-swap:** Replacing labels cannot turn the same picture into an unrelated
   explanation.
@@ -273,11 +277,10 @@ test not applicable only with a reason in the intent ledger.
   start through outcome without guessing.
 - **Thumbnail:** At reduced size, the subject, hierarchy, and primary direction
   survive even when small labels do not.
-- **Article typography:** At the normal host article width, ordinary labels are
-  approximately body-sized, no visible label becomes a footnote, no more than
-  two visible sizes compete, and the drawing contains no visible title, long
-  legend, or explanatory paragraph. Record the measured width and sizes rather
-  than judging a zoomed source canvas.
+- **Host readability:** At every supported layout, labels remain legible,
+  hierarchy remains clear, and overflow or panning does not hide the initial
+  takeaway. Record the inspected display contexts and observations rather than
+  judging a zoomed source canvas.
 - **Grayscale:** Meaning survives grayscale and common color-vision differences.
 - **Prose-dependency:** The surrounding prose is not required to invent what the
   shapes, connectors, or layout mean.
@@ -286,15 +289,18 @@ test not applicable only with a reason in the intent ledger.
   assembled behavior.
 
 For every new or changed figure, run a blind review: show the rendered asset
-without its caption, host prose, or intent ledger to an independent reviewer. Ask for
-the conclusion, subject, action, constraint, and status distinction or lack of
-one, then compare the answer with the ledger. Do not reveal the intended
-interpretation in the review prompt. Record the recovered reading and comparison
-in `review.blindReview`. A materially different reading requires recomposition.
-Record only a non-identifying reviewer label; never publish a person's name,
-email address, account id, chat id, or private transcript. Untouched bundles
-remain exempt until they change.
+without its caption, host prose, or intent ledger to a fresh reviewer. Ask the
+reviewer to explain the figure in their own words without supplying the intended
+categories or interpretation. Record a non-identifying `reviewerLabel`, rendering
+and display context, exact prompt, free recovered reading, and comparison in
+`review.blindReview`. A materially different reading requires recomposition.
+Never publish a person's name, email address, account id, chat id, or private
+transcript. Use repository-relative artifact paths and public-safe review text.
+Existing `artifact` records remain accepted as rendering provenance; do not
+rewrite historical review evidence as if a new review had occurred. Unchanged
+bundles remain exempt until they change.
 
-Accept only when the caption states the conclusion, the result is legible at
-the real documentation size, and tracked sources reproduce it without hidden
-interactive state.
+Accept only when the visible `figcaption` matches the intent ledger and explains
+the result or consequence in enough plain prose to make the figure useful on its
+own. The result must also be legible at the real documentation size, and tracked
+sources must reproduce it without hidden interactive state.

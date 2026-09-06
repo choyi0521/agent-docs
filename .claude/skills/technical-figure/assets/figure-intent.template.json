@@ -1,101 +1,55 @@
 {
   "version": 1,
   "id": "replace-with-stable-figure-id",
+  "kind": "replace-with-one-of-contrast-decision-fan-out-flow-layout-state-timeline",
   "question": "What reader question does this figure answer?",
   "claim": "State the single source-backed conclusion as a declarative sentence.",
-  "subject": "Name the concrete entity the reader follows or compares.",
-  "threeSecondTakeaway": "State what a reader should recover before reading detail.",
-  "caption": "State the conclusion without narrating every visible element.",
-  "decomposition": {
-    "subject": "The entity the reader follows or compares.",
-    "action": "The visible action or relationship.",
-    "constraint": "The boundary, rule, or condition that changes the outcome.",
-    "state": "The current, partial, absent, planned, or schematic status.",
-    "outcome": "The terminal result the composition makes visible."
-  },
-  "labelFreeCompositions": [
+  "subject": "Name what the reader follows, compares, or inspects.",
+  "immediateTakeaway": "State what the first visual reading should recover.",
+  "caption": "Explain the figure's result or consequence in plain prose, in the host page's language.",
+  "decomposition": [
     {
-      "id": "candidate-a",
-      "model": "Describe the first label-free spatial model."
-    },
+      "id": "replace-with-applicable-fact-id",
+      "meaning": "Record a fact, relationship, limit, or status distinction that the composition must expose. Add only entries that apply."
+    }
+  ],
+  "compositions": [
     {
-      "id": "candidate-b",
-      "model": "Describe a materially different label-free spatial model."
+      "id": "selected-composition",
+      "model": "Describe the selected label-free spatial model. Add alternatives only when they informed the decision."
     }
   ],
   "selectedComposition": {
-    "id": "candidate-a",
-    "reason": "Explain why its geometry exposes the claim with less interpretation."
+    "id": "selected-composition",
+    "reason": "Explain why this geometry exposes the claim with the least interpretation."
   },
   "readingOrder": [
-    "primary-subject",
-    "visible-action",
-    "real-constraint",
-    "terminal-state"
+    "replace-with-element-id"
   ],
   "representativeTrace": {
     "status": "pending",
     "entity": "For pass, name the concrete entity being traced.",
     "steps": [
-      "primary-subject",
-      "visible-action",
-      "terminal-state"
+      "replace-with-element-id"
     ],
     "reason": "For not-applicable, replace this with the reason no trace applies."
   },
   "elements": [
     {
-      "id": "primary-subject",
-      "svgId": "primary-subject",
-      "role": "subject",
-      "meaning": "The source-backed fact represented by the subject.",
-      "encoding": "The chosen position, form, size, line, color, repetition, or whitespace.",
-      "whyThisEncoding": "Why this channel explains the fact more directly than a label or generic box.",
+      "id": "replace-with-element-id",
+      "svgId": "replace-with-output-id-when-the-format-supports-one",
+      "role": "Name the semantic purpose this element serves in the claim.",
+      "meaning": "State the source-backed fact represented by this element.",
+      "encoding": "Describe the position, form, connector, size, color, repetition, annotation, or whitespace used.",
+      "whyThisEncoding": "Explain why this encoding makes the fact easier to recover.",
       "evidence": [
         "replace/with/source.ext#exact-locator"
       ],
-      "removalLoss": "The meaning or accessibility cue lost if this element is removed."
-    },
-    {
-      "id": "visible-action",
-      "svgId": "visible-action",
-      "role": "action",
-      "meaning": "The one source-backed action carried by this connector or transformation.",
-      "verb": "replace-with-one-verb",
-      "encoding": "The geometry, direction, endpoint, and line style that expose the action.",
-      "whyThisEncoding": "Why this encoding cannot be mistaken for another relation in this figure.",
-      "evidence": [
-        "replace/with/source.ext#exact-locator"
-      ],
-      "removalLoss": "The action the reader could no longer recover."
-    },
-    {
-      "id": "real-constraint",
-      "svgId": "real-constraint",
-      "role": "boundary",
-      "meaning": "The actual ownership, scope, isolation, validation, or spatial boundary.",
-      "encoding": "The enclosure, gate, gap, or separation used to expose the constraint.",
-      "whyThisEncoding": "Why the boundary exists visually and what crossing it means.",
-      "evidence": [
-        "replace/with/source.ext#exact-locator"
-      ],
-      "removalLoss": "The constraint that would disappear."
-    },
-    {
-      "id": "terminal-state",
-      "svgId": "terminal-state",
-      "role": "state",
-      "meaning": "The final source-backed state or contrast.",
-      "encoding": "The terminal, retained state, before/after view, or other visible result.",
-      "whyThisEncoding": "Why the result is recognizable without reading surrounding prose.",
-      "evidence": [
-        "replace/with/source.ext#exact-locator"
-      ],
-      "removalLoss": "The conclusion the figure would no longer state."
+      "removalLoss": "State the meaning or accessibility cue lost if this element is removed."
     }
   ],
   "review": {
-    "threeSecond": {
+    "firstRead": {
       "status": "pending",
       "observation": "Describe what appeared first at the real display size."
     },
@@ -121,7 +75,7 @@
     },
     "arrowVerb": {
       "status": "pending",
-      "observation": "For pass, confirm every connector carries one verb.",
+      "observation": "For pass, confirm every connector class carries one relation.",
       "reason": "For not-applicable, explain why the figure has no connectors."
     },
     "boundary": {
@@ -136,11 +90,11 @@
     },
     "thumbnail": {
       "status": "pending",
-      "observation": "Describe the subject, hierarchy, and direction retained at reduced size."
+      "observation": "Describe the subject, hierarchy, and direction retained when reduced."
     },
-    "articleTypography": {
+    "hostReadability": {
       "status": "pending",
-      "observation": "Record the normal host article width, final rendered ordinary and smallest label sizes, visible type-size count, and whether any wider view preserves authored scale with scrolling."
+      "observation": "Record the supported display contexts inspected and whether labels, hierarchy, and overflow remain usable."
     },
     "grayscale": {
       "status": "pending",
@@ -152,21 +106,15 @@
     },
     "sourceTruth": {
       "status": "pending",
-      "observation": "Confirm each solid path, boundary, quantity, and state against evidence."
+      "observation": "Confirm each visible claim against its evidence."
     },
     "blindReview": {
       "status": "pending",
       "reviewerLabel": "Use a non-identifying label such as independent-reviewer; do not record names, emails, account ids, chat ids, or private transcript links.",
-      "artifact": "Record a repository-relative artifact and display size; never use a local absolute path, private URL, or transcript link.",
-      "prompt": "Ask for the conclusion, subject, action, constraint, and status or lack of one without leading the reviewer.",
-      "recovered": {
-        "claim": "Record the reviewer's recovered claim verbatim or as a faithful summary.",
-        "subject": "Record the recovered subject.",
-        "action": "Record the recovered action.",
-        "constraint": "Record the recovered constraint.",
-        "status": "Record the recovered status distinction or why none applies."
-      },
-      "comparison": "Compare the recovered reading with the intended ledger and explain the pass decision."
+      "rendering": "Record the repository-relative rendered artifact and display context shown without caption, prose, or ledger; never use local absolute paths, private URLs, or transcript links.",
+      "prompt": "Record the exact non-leading prompt used to request the reviewer's own explanation.",
+      "recovered": "Record the reviewer's recovered reading without forcing it into preset semantic fields.",
+      "comparison": "Compare the recovered reading with the applicable intent and explain the decision."
     }
   }
 }

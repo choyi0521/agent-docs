@@ -34,29 +34,15 @@ unadorned abstraction to a metaphor the reader must learn.
 
 ## Assign logical roles
 
-Classify each intent-ledger element with exactly one of these roles:
-
-| Role | Use for |
-| --- | --- |
-| `subject` | The concrete entity followed, transformed, or compared |
-| `action` | A visible operation that changes or moves the subject |
-| `relationship` | A typed dependency, association, or comparison |
-| `constraint` | A rule, condition, gate, or limit |
-| `state` | A current, prior, partial, absent, planned, accepted, or failed condition |
-| `boundary` | Real ownership, scope, isolation, containment, or spatial extent |
-| `quantity` | A measured count, length, proportion, capacity, or magnitude |
-| `sequence` | Order, lifetime, phase, or concurrency |
-| `evidence` | A source-backed annotation attached to the fact it qualifies |
-| `accessibility` | Intentional redundant encoding that makes another fact perceivable |
-| `context` | Necessary orientation that is not the primary claim |
-
-Classify a terminal outcome by the fact it presents, usually `state` or
-`relationship`. Do not create visual-role synonyms such as `node`, `box`,
-`arrow`, or `outcome`; those name marks or positions, not meaning.
+Name each intent-ledger role by the fact that the element contributes to the
+claim. The vocabulary is open because different domains expose different
+facts. A role must describe semantic purpose rather than repeat the name of the
+drawing primitive used to render it.
 
 Every ledger element must explain `whyThisEncoding` instead of merely naming
-the mark. Every `action` and `relationship` must carry one exact verb. Use a
-different element or connector class when the verb changes.
+the mark. Every connector class and visible transition must carry one
+unambiguous relation. Use a different element or connector class when that
+relation changes.
 
 ## Match form to truth
 
@@ -81,12 +67,11 @@ removes work the reader would otherwise perform mentally.
 
 ## Encode relationships
 
-- Use one visual channel for one meaning within a figure. Do not reuse dashed
-  lines for both optional behavior and async calls.
-- Name each connector class with one verb or relation in the intent ledger:
-  `imports`, `owns`, `publishes`, `calls`, `transforms`, or `rejects`.
+- Use one visual channel for one meaning within a figure. Do not reuse the same
+  styling for relations that mean different things.
+- Name each connector class with its relation in the intent ledger.
 - Let arrow direction describe the recorded relation, not merely reading order.
-- Separate dependency, execution order, data movement, and state transition.
+- Separate relations whose direction, timing, ownership, or effect differs.
 - Make crossings rare. If crossings carry meaning, expose their junction or
   non-junction explicitly; otherwise recompose.
 - Use an enclosing boundary only for actual ownership, scope, containment,
@@ -130,10 +115,10 @@ Treat the composition as one visual sentence:
 - `context`: lower-contrast support;
 - `evidence`: adjacent to the fact it qualifies.
 
-Layer comprehension by time: within three seconds expose the subject and
-takeaway; within ten seconds let the reader follow one representative action or
-contrast; within thirty seconds reveal exceptions, evidence, and status limits.
-Do not make the first layer depend on reading the third.
+Layer comprehension so the first read exposes the subject and takeaway, the
+next read exposes the representative relation or contrast, and deeper inspection
+reveals exceptions, evidence, and status limits. Do not make an earlier layer
+depend on a later one.
 
 Use whitespace to separate stages and reduce competition. Keep legends small
 and local; prefer self-explaining encodings. Keep titles and captions outside
@@ -142,29 +127,30 @@ silhouette. Split a poster into an overview and focused views when its smallest
 meaningful label cannot be read at the host article width.
 
 Typography belongs to the host page, not to an isolated drawing canvas. At the
-final rendered article size, use the surrounding body text as the ordinary
-label size. A normal technical
-figure has one ordinary label size and, when hierarchy needs it, one restrained
-emphasis size. Avoid a staircase of title, section, label, detail, and tiny
-styles; it makes the drawing feel like a miniature poster and forces readers to
-zoom. More than two visible sizes needs a source-backed semantic reason recorded
-in the intent ledger. No visible label may become footnote-sized merely because
-the source canvas is wide.
+final rendered article size, compare labels with the surrounding body text and
+make every distinct typographic treatment serve a clear part of the hierarchy.
+Avoid decorative variation that competes with the mechanism or forces readers
+to zoom.
 
-The visible drawing contains short identifiers and local action words. Put the
-page heading, figure title, conclusion, explanation, and long legend in normal
-HTML prose or the caption. This does not remove the SVG's non-visible accessible
-`<title>` and `<desc>`. If labels do not fit at body-like size, reduce the number
-of facts, split the figure, or move lookup detail to a table.
+Visible labels should resolve the local identity or relationship at their mark.
+Put explanation that applies to the whole figure in normal HTML prose or the
+`figcaption`. This does not remove the SVG's non-visible accessible `<title>`
+and `<desc>`. If unambiguous labels do not fit at a readable host size, reduce
+the number of facts, split the figure, or move lookup detail to a table.
+
+Write `figcaption` in the same language as the host page. It must explain the
+result or consequence that the geometry exposes, in enough plain prose to make
+the figure useful when encountered on its own. Do not reduce it to a category
+name or status tag. Use as many sentences as the meaning needs, and revise by
+reader comprehension rather than by a word or sentence quota. Keep the ledger's
+`caption` text and the visible `figcaption` identical so review and published
+meaning cannot drift.
 
 Author the coordinate canvas close to the actual host width. When a wider view
 is essential, preserve its authored scale with a deliberate horizontal-scroll
-container and provide a readable overview or caption; do not silently fit a
-wide poster into a substantially narrower article column. Verify computed text
-sizes on the rendered host page because SVG `viewBox` scaling changes every
-authored font size. When the host cannot be measured during authoring, use only
-a neutral preview fallback and re-check against the actual host before
-acceptance.
+container and provide a readable overview or caption; do not silently shrink a
+wide composition until its labels are difficult to read. Verify the result on
+the rendered host page because SVG `viewBox` scaling changes authored text.
 
 At narrow width, preserve the takeaway before requiring horizontal panning. A
 scrollable detail view is acceptable only when a visible overview or caption
@@ -190,9 +176,10 @@ table expresses the truth more directly, use the table.
 
 A structural audit cannot judge these failures. For every new or changed
 figure, give the rendered asset without its caption, prose, or intent ledger to
-an independent reviewer. Record only a non-identifying reviewer label. Accept
-only when the recovered claim, subject, action, constraint, and status match
-the ledger. Manually verify that every visible
-logical element has an intent entry; declared SVG ids prove presence, not
-complete coverage, and a raster image cannot expose an exhaustive
+a fresh reviewer. Record only a non-identifying reviewer label and public-safe
+review text. Ask for an explanation in the reviewer's own words without
+supplying the intended semantic categories. Accept only when that recovered
+reading agrees with the applicable parts of the ledger. Manually verify that
+every visible logical element has an intent entry; declared SVG ids prove
+presence, not complete coverage, and a raster image cannot expose an exhaustive
 machine-checkable id map.

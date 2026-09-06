@@ -21,7 +21,7 @@ SCRIPT_DIRECTORY = Path(__file__).resolve().parent
 if str(SCRIPT_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIRECTORY))
 
-from audit_figures import ALLOWED_ROLES, PNG_SIGNATURE, audit_bundle, main  # noqa: E402
+from audit_figures import PNG_SIGNATURE, audit_bundle, main  # noqa: E402
 import figure_tools as FIGURE_TOOLS  # noqa: E402
 
 
@@ -275,6 +275,8 @@ class FigureAuditTests(unittest.TestCase):
                 "blindReview": {
                     "status": "pass",
                     "reviewerLabel": "independent-reviewer",
+                    "rendering": "figure.svg rendered at the host article width",
+                    "prompt": "Explain what this figure communicates in your own words.",
                     "recovered": {
                         "claim": "Validation is required for authority.",
                         "subject": "candidate artifact",
@@ -346,12 +348,13 @@ class FigureAuditTests(unittest.TestCase):
 
         self.assertEqual([], diagnostics)
 
-    def test_all_allowed_roles_pass(self) -> None:
+    def test_open_role_vocabulary_passes(self) -> None:
         intent = self._valid_intent()
         elements = []
         order = []
         svg_groups = []
-        for index, role in enumerate(sorted(ALLOWED_ROLES)):
+        roles = ("input-authority", "decision-boundary", "retained-outcome")
+        for index, role in enumerate(roles):
             element_id = f"element-{index}"
             order.append(element_id)
             elements.append(
@@ -366,8 +369,6 @@ class FigureAuditTests(unittest.TestCase):
                     "svgId": f"shape-{index}",
                 }
             )
-            if role in {"action", "relationship"}:
-                elements[-1]["verb"] = "connects"
             svg_groups.append(f'<g id="shape-{index}" />')
         intent["elements"] = elements
         intent["readingOrder"] = order
@@ -387,6 +388,54 @@ class FigureAuditTests(unittest.TestCase):
         bundle = self._write_bundle(intent=intent, svg=svg)
 
         self.assertEqual([], audit_bundle(bundle, self.repo_root))
+
+    def test_current_open_intent_fields_pass(self) -> None:
+        intent = self._valid_intent()
+        intent["immediateTakeaway"] = intent.pop("threeSecondTakeaway")
+        intent["decomposition"] = [
+            {
+                "id": "authority-change",
+                "meaning": "Validation is the only authority-changing boundary.",
+            }
+        ]
+        intent["compositions"] = [
+            {"id": "candidate-a", "model": "A narrow validation gate."}
+        ]
+        intent.pop("labelFreeCompositions")
+        review = intent["review"]  # type: ignore[assignment]
+        review["firstRead"] = review.pop("threeSecond")  # type: ignore[union-attr]
+        review["hostReadability"] = review.pop("articleTypography")  # type: ignore[union-attr]
+        review["blindReview"]["recovered"] = (  # type: ignore[index]
+            "A candidate becomes authoritative only after validation."
+        )
+        bundle = self._write_bundle(intent=intent)
+
+        self.assertEqual([], audit_bundle(bundle, self.repo_root))
+
+    def test_kind_is_optional_and_a_declared_kind_passes(self) -> None:
+        intent = self._valid_intent()
+        intent["kind"] = "contrast"
+
+        self.assertEqual([], audit_bundle(self._write_bundle(intent=intent),
+                                          self.repo_root))
+
+    def test_undeclared_kind_is_reported(self) -> None:
+        intent = self._valid_intent()
+        intent["kind"] = "poster"
+        bundle = self._write_bundle(intent=intent)
+
+        diagnostics = audit_bundle(bundle, self.repo_root)
+
+        self.assertIn("intent.kind", self._codes(diagnostics))
+
+    def test_empty_kind_is_reported(self) -> None:
+        intent = self._valid_intent()
+        intent["kind"] = ""
+        bundle = self._write_bundle(intent=intent)
+
+        diagnostics = audit_bundle(bundle, self.repo_root)
+
+        self.assertIn("intent.kind", self._codes(diagnostics))
 
     def test_malformed_json_reports_location(self) -> None:
         bundle = self._write_bundle()
@@ -421,20 +470,25 @@ class FigureAuditTests(unittest.TestCase):
         self.assertIn("intent.id", codes)
         self.assertIn("intent.field", codes)
 
-    def test_decomposition_requires_all_five_nonempty_fields(self) -> None:
-        intent = self._valid_intent()
-        del intent["decomposition"]["outcome"]  # type: ignore[index]
-        intent["decomposition"]["action"] = ""  # type: ignore[index]
-        bundle = self._write_bundle(intent=intent)
+    def test_decomposition_is_open_but_must_record_content(self) -> None:
+        for name, decomposition, should_pass in (
+            ("open-object", {"authority-change": "Validation changes authority."}, True),
+            ("open-array", [{"meaning": "Validation changes authority."}], True),
+            ("empty-object", {}, False),
+            ("empty-array", [], False),
+            ("empty-text", {"custom": "  "}, False),
+        ):
+            with self.subTest(name=name):
+                intent = self._valid_intent()
+                intent["decomposition"] = decomposition
+                bundle = self._write_bundle(name=name, intent=intent)
+                codes = self._codes(audit_bundle(bundle, self.repo_root))
+                if should_pass:
+                    self.assertNotIn("intent.decomposition", codes)
+                else:
+                    self.assertIn("intent.decomposition", codes)
 
-        messages = "\n".join(
-            item.message for item in audit_bundle(bundle, self.repo_root)
-        )
-
-        self.assertIn("decomposition.outcome", messages)
-        self.assertIn("decomposition.action", messages)
-
-    def test_two_unique_compositions_and_selected_reference_are_required(self) -> None:
+    def test_composition_entries_and_selected_reference_are_validated(self) -> None:
         intent = self._valid_intent()
         intent["labelFreeCompositions"] = [
             {"id": "candidate-a", "model": "First."},
@@ -450,7 +504,7 @@ class FigureAuditTests(unittest.TestCase):
         self.assertIn("composition.selected-unknown", codes)
         self.assertIn("composition.selected-reason", codes)
 
-    def test_composition_array_requires_at_least_two_candidates(self) -> None:
+    def test_composition_array_accepts_the_selected_candidate_alone(self) -> None:
         intent = self._valid_intent()
         intent["labelFreeCompositions"] = [
             {"id": "only-one", "model": "Only one composition."}
@@ -461,10 +515,7 @@ class FigureAuditTests(unittest.TestCase):
         }
         bundle = self._write_bundle(intent=intent)
 
-        self.assertIn(
-            "composition.candidates",
-            self._codes(audit_bundle(bundle, self.repo_root)),
-        )
+        self.assertEqual([], audit_bundle(bundle, self.repo_root))
 
     def test_missing_required_top_level_and_element_fields_are_reported(self) -> None:
         intent = self._valid_intent()
@@ -496,21 +547,17 @@ class FigureAuditTests(unittest.TestCase):
         self.assertIn("reading-order.duplicate", codes)
         self.assertIn("reading-order.unknown", codes)
 
-    def test_arbitrary_role_is_rejected(self) -> None:
+    def test_arbitrary_semantic_role_is_accepted(self) -> None:
         intent = self._valid_intent()
-        intent["elements"][0]["role"] = "pretty-decoration"  # type: ignore[index]
+        intent["elements"][0]["role"] = "authority-source"  # type: ignore[index]
         bundle = self._write_bundle(intent=intent)
 
-        diagnostics = audit_bundle(bundle, self.repo_root)
+        self.assertEqual([], audit_bundle(bundle, self.repo_root))
 
-        self.assertIn("element.role", self._codes(diagnostics))
-        self.assertIn("subject", "\n".join(item.message for item in diagnostics))
-
-    def test_elements_require_encoding_intent_and_connector_verbs(self) -> None:
+    def test_elements_require_encoding_intent_and_validate_declared_verbs(self) -> None:
         intent = self._valid_intent()
         del intent["elements"][0]["whyThisEncoding"]  # type: ignore[index]
-        intent["elements"][1]["role"] = "action"  # type: ignore[index]
-        intent["elements"][2]["role"] = "relationship"  # type: ignore[index]
+        intent["elements"][1]["verb"] = ""  # type: ignore[index]
         bundle = self._write_bundle(intent=intent)
 
         diagnostics = audit_bundle(bundle, self.repo_root)
@@ -518,14 +565,10 @@ class FigureAuditTests(unittest.TestCase):
 
         self.assertIn("element.field", codes)
         self.assertIn("element.verb", codes)
-        messages = "\n".join(item.message for item in diagnostics)
-        self.assertIn("'action'", messages)
-        self.assertIn("'relationship'", messages)
 
-    def test_relationship_role_accepts_a_nonempty_verb(self) -> None:
+    def test_role_name_does_not_imply_a_verb_field(self) -> None:
         intent = self._valid_intent()
         intent["elements"][1]["role"] = "relationship"  # type: ignore[index]
-        intent["elements"][1]["verb"] = "validates"  # type: ignore[index]
         bundle = self._write_bundle(intent=intent)
 
         self.assertEqual([], audit_bundle(bundle, self.repo_root))
@@ -615,7 +658,7 @@ class FigureAuditTests(unittest.TestCase):
         self.assertIn("review.status", codes)
         self.assertIn("review.observation", codes)
 
-    def test_article_typography_review_is_required(self) -> None:
+    def test_host_readability_review_or_compatible_alias_is_required(self) -> None:
         intent = self._valid_intent()
         del intent["review"]["articleTypography"]  # type: ignore[index]
         bundle = self._write_bundle(intent=intent)
@@ -624,7 +667,7 @@ class FigureAuditTests(unittest.TestCase):
 
         self.assertIn("review.entry", self._codes(diagnostics))
         self.assertIn(
-            "review.articleTypography",
+            "review.hostReadability",
             "\n".join(item.message for item in diagnostics),
         )
 
@@ -640,16 +683,14 @@ class FigureAuditTests(unittest.TestCase):
             "review.reason", self._codes(audit_bundle(bundle, self.repo_root))
         )
 
-    def test_blind_review_requires_pass_recovery_and_comparison(self) -> None:
+    def test_blind_review_requires_provenance_free_recovery_and_comparison(self) -> None:
         intent = self._valid_intent()
         intent["review"]["blindReview"] = {  # type: ignore[index]
             "status": "pending",
-            "recovered": {
-                "claim": "",
-                "subject": "subject",
-                "action": "action",
-                "constraint": "constraint",
-            },
+            "reviewerLabel": "",
+            "rendering": "",
+            "prompt": "",
+            "recovered": {"custom": ""},
             "comparison": "",
         }
         bundle = self._write_bundle(intent=intent)
@@ -657,8 +698,71 @@ class FigureAuditTests(unittest.TestCase):
         codes = self._codes(audit_bundle(bundle, self.repo_root))
 
         self.assertIn("blind-review.status", codes)
-        self.assertIn("blind-review.field", codes)
+        self.assertIn("blind-review.reviewer-label", codes)
+        self.assertIn("blind-review.rendering", codes)
+        self.assertIn("blind-review.prompt", codes)
+        self.assertIn("blind-review.recovered", codes)
         self.assertIn("blind-review.comparison", codes)
+
+    def test_blind_review_accepts_free_recovered_reading(self) -> None:
+        for index, recovered in enumerate(
+            (
+                "A candidate crosses a validation gate before it becomes authoritative.",
+                {"reading": "Validation gates the change in authority."},
+                ["A candidate crosses the gate.", "The approved result is retained."],
+            )
+        ):
+            with self.subTest(recovered=recovered):
+                intent = self._valid_intent()
+                intent["review"]["blindReview"]["recovered"] = recovered
+                bundle = self._write_bundle(name=f"free-reading-{index}", intent=intent)
+
+                self.assertEqual([], audit_bundle(bundle, self.repo_root))
+
+    def test_blind_review_rejects_empty_or_nontext_recovery(self) -> None:
+        for index, recovered in enumerate(("", "  ", {}, [], {"reading": []}, True, 1)):
+            with self.subTest(recovered=recovered):
+                intent = self._valid_intent()
+                intent["review"]["blindReview"]["recovered"] = recovered
+                bundle = self._write_bundle(name=f"empty-reading-{index}", intent=intent)
+
+                self.assertIn(
+                    "blind-review.recovered", self._codes(audit_bundle(bundle, self.repo_root))
+                )
+
+    def test_blind_review_requires_each_provenance_field(self) -> None:
+        for field in ("rendering", "prompt"):
+            with self.subTest(field=field):
+                intent = self._valid_intent()
+                del intent["review"]["blindReview"][field]
+                bundle = self._write_bundle(name=f"missing-{field}", intent=intent)
+
+                self.assertIn(
+                    f"blind-review.{field}", self._codes(audit_bundle(bundle, self.repo_root))
+                )
+
+    def test_existing_artifact_provenance_is_accepted_without_rewriting_it(self) -> None:
+        intent = self._valid_intent()
+        review = intent["review"]["blindReview"]
+        review["artifact"] = review.pop("rendering")
+        bundle = self._write_bundle(name="existing-artifact", intent=intent)
+
+        self.assertEqual([], audit_bundle(bundle, self.repo_root))
+
+        review["rendering"] = ""
+        bundle = self._write_bundle(name="empty-rendering", intent=intent)
+        self.assertIn(
+            "blind-review.rendering", self._codes(audit_bundle(bundle, self.repo_root))
+        )
+
+    def test_legacy_review_alias_cannot_hide_a_failed_current_review(self) -> None:
+        for field in ("firstRead", "hostReadability"):
+            with self.subTest(field=field):
+                intent = self._valid_intent()
+                intent["review"][field] = {"status": "fail", "observation": "Needs review."}
+                bundle = self._write_bundle(name=f"failed-{field.lower()}", intent=intent)
+
+                self.assertIn("review.status", self._codes(audit_bundle(bundle, self.repo_root)))
 
     def test_blind_review_rejects_identifying_reviewer_metadata(self) -> None:
         intent = self._valid_intent()
@@ -1194,6 +1298,19 @@ class FigureAuditTests(unittest.TestCase):
                     expected_code, self._codes(audit_bundle(bundle, self.repo_root))
                 )
 
+    def test_visible_caption_must_match_the_intent_ledger(self) -> None:
+        bundle = self._write_bundle(
+            html=(
+                '<figure><img src="figure.svg" alt="">'
+                "<figcaption>A different conclusion.</figcaption></figure>"
+            )
+        )
+
+        self.assertIn(
+            "caption.intent-mismatch",
+            self._codes(audit_bundle(bundle, self.repo_root)),
+        )
+
     def test_html_requires_figure_and_places_caption_inside_it(self) -> None:
         bundle = self._write_bundle(
             html=(
@@ -1383,7 +1500,8 @@ class FigureAuditTests(unittest.TestCase):
             '<?xml-stylesheet href="https://attacker.invalid/figure.css" '
             'type="text/css"?>'
             '<figure><img src="figure.svg" alt="">'
-            "<figcaption>Conclusion.</figcaption></figure>"
+            "<figcaption>Only a validated candidate becomes authoritative.</figcaption>"
+            "</figure>"
         )
         html_bundle = self._write_bundle(name="html-xml-stylesheet", html=html)
         self.assertIn(
@@ -1490,7 +1608,8 @@ class FigureAuditTests(unittest.TestCase):
                 html = (
                     '<figure><img src="figure.svg" alt="">'
                     f'<span style="background-image:{image_value}">label</span>'
-                    "<figcaption>Conclusion.</figcaption></figure>"
+                    "<figcaption>Only a validated candidate becomes authoritative."
+                    "</figcaption></figure>"
                 )
                 bundle = self._write_bundle(
                     name=f"image-set-html-inline-{name}", html=html
@@ -1778,7 +1897,8 @@ class FigureAuditTests(unittest.TestCase):
             '<title id="inline-title">Authority</title>'
             '<desc id="inline-desc">A candidate crosses the gate.</desc>'
             f"{marker}</svg>"
-            "<figcaption>Conclusion.</figcaption></figure>"
+            "<figcaption>Only a validated candidate becomes authoritative.</figcaption>"
+            "</figure>"
         )
         html_bundle = self._write_bundle(name="marker-geometry-html", html=html)
         self.assertEqual([], audit_bundle(html_bundle, self.repo_root))
@@ -1818,7 +1938,8 @@ class FigureAuditTests(unittest.TestCase):
                     '<title id="inline-title">Authority</title>'
                     '<desc id="inline-desc">A candidate crosses the gate.</desc>'
                     f"{text_markup}</svg>"
-                    "<figcaption>Conclusion.</figcaption></figure>"
+                    "<figcaption>Only a validated candidate becomes authoritative."
+                    "</figcaption></figure>"
                 )
                 bundle = self._write_bundle(
                     name=f"text-ancestry-html-{name}", html=html
@@ -1922,7 +2043,7 @@ class FigureAuditTests(unittest.TestCase):
             self._codes(audit_bundle(bundle, self.repo_root)),
         )
 
-    def test_svg_typography_accounts_for_viewbox_fit_to_article_width(self) -> None:
+    def test_svg_typography_does_not_infer_legibility_from_pixel_size(self) -> None:
         svg = """<svg id="test-figure" xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 1100 500" style="width:100%"
             aria-labelledby="figure-title figure-desc">
@@ -1936,10 +2057,7 @@ class FigureAuditTests(unittest.TestCase):
         </svg>"""
         bundle = self._write_bundle(svg=svg)
 
-        diagnostics = audit_bundle(bundle, self.repo_root)
-
-        self.assertIn("svg.text-too-small", self._codes(diagnostics))
-        self.assertIn("10.2px", "\n".join(item.message for item in diagnostics))
+        self.assertEqual([], audit_bundle(bundle, self.repo_root))
 
     def test_svg_typography_uses_the_supplied_host_width(self) -> None:
         svg = """<svg xmlns="http://www.w3.org/2000/svg"
@@ -2178,7 +2296,7 @@ class FigureAuditTests(unittest.TestCase):
                     self._codes(audit_bundle(bundle, self.repo_root)),
                 )
 
-    def test_svg_typography_applies_scoped_css_width_to_root(self) -> None:
+    def test_measurable_scoped_root_width_is_structurally_accepted(self) -> None:
         svg = """<svg id="test-figure" xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 704 300" aria-labelledby="figure-title figure-desc">
           <title id="figure-title">Authority boundary</title>
@@ -2191,12 +2309,9 @@ class FigureAuditTests(unittest.TestCase):
         </svg>"""
         bundle = self._write_bundle(name="root-width-scoped-css", svg=svg)
 
-        self.assertIn(
-            "svg.text-too-small",
-            self._codes(audit_bundle(bundle, self.repo_root)),
-        )
+        self.assertEqual([], audit_bundle(bundle, self.repo_root))
 
-    def test_svg_typography_applies_root_height_constraint(self) -> None:
+    def test_measurable_root_height_is_structurally_accepted(self) -> None:
         svg = """<svg xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 704 300" style="width:100%;height:1px"
             aria-labelledby="figure-title figure-desc">
@@ -2209,10 +2324,7 @@ class FigureAuditTests(unittest.TestCase):
         </svg>"""
         bundle = self._write_bundle(name="root-height", svg=svg)
 
-        self.assertIn(
-            "svg.text-too-small",
-            self._codes(audit_bundle(bundle, self.repo_root)),
-        )
+        self.assertEqual([], audit_bundle(bundle, self.repo_root))
 
     def test_nested_svg_presentation_viewports_fail_closed(self) -> None:
         variants = {
@@ -2469,7 +2581,7 @@ class FigureAuditTests(unittest.TestCase):
                     self._codes(audit_bundle(bundle, self.repo_root)),
                 )
 
-    def test_color_scheme_font_branches_use_the_worst_case_independent_of_order(
+    def test_color_scheme_font_sizes_are_left_to_host_readability_review(
         self,
     ) -> None:
         variants = {
@@ -2500,12 +2612,12 @@ class FigureAuditTests(unittest.TestCase):
                   <g id="authority-shape" />
                 </svg>"""
                 bundle = self._write_bundle(name=f"media-font-{name}", svg=svg)
-                self.assertIn(
+                self.assertNotIn(
                     "svg.text-too-small",
                     self._codes(audit_bundle(bundle, self.repo_root)),
                 )
 
-    def test_svg_typography_collects_tspan_text_and_text_tails(self) -> None:
+    def test_tspan_font_sizes_are_left_to_host_readability_review(self) -> None:
         variants = {
             "inherited-tspan": (
                 '<text x="20" y="40" font-size="1">'
@@ -2535,12 +2647,12 @@ class FigureAuditTests(unittest.TestCase):
                   <g id="authority-shape" />
                 </svg>"""
                 bundle = self._write_bundle(name=f"text-tail-{name}", svg=svg)
-                self.assertIn(
+                self.assertNotIn(
                     "svg.text-too-small",
                     self._codes(audit_bundle(bundle, self.repo_root)),
                 )
 
-    def test_svg_typography_collects_text_through_arbitrary_containers(self) -> None:
+    def test_container_font_sizes_are_left_to_host_readability_review(self) -> None:
         variants = {
             "direct-link": (
                 '<text x="20" y="40" font-size="1">'
@@ -2564,17 +2676,12 @@ class FigureAuditTests(unittest.TestCase):
                   <g id="authority-shape" />
                 </svg>"""
                 bundle = self._write_bundle(name=f"text-container-{name}", svg=svg)
-                self.assertIn(
+                self.assertNotIn(
                     "svg.text-too-small",
                     self._codes(audit_bundle(bundle, self.repo_root)),
                 )
 
-    def test_typography_exception_does_not_hide_unverifiable_css(self) -> None:
-        intent = self._valid_intent()
-        intent["typographyException"] = {
-            "reason": "Several measured levels carry distinct semantics.",
-            "evidence": ["docs/evidence.md#four-measured-levels"],
-        }
+    def test_unverifiable_css_remains_a_structural_failure(self) -> None:
         svg = """<svg id="test-figure" xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 704 300" style="width:100%"
             aria-labelledby="figure-title figure-desc">
@@ -2586,14 +2693,14 @@ class FigureAuditTests(unittest.TestCase):
           <g id="gate-shape" />
           <g id="authority-shape" />
         </svg>"""
-        bundle = self._write_bundle(intent=intent, svg=svg)
+        bundle = self._write_bundle(svg=svg)
 
         self.assertIn(
             "svg.typography-unverifiable",
             self._codes(audit_bundle(bundle, self.repo_root)),
         )
 
-    def test_egregious_svg_type_scale_requires_an_evidenced_exception(self) -> None:
+    def test_svg_type_count_is_left_to_host_readability_review(self) -> None:
         svg = """<svg xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 704 300" style="width:100%"
             aria-labelledby="figure-title figure-desc">
@@ -2608,29 +2715,9 @@ class FigureAuditTests(unittest.TestCase):
           <g id="authority-shape" />
         </svg>"""
         bundle = self._write_bundle(svg=svg)
-        self.assertIn(
-            "svg.type-scale", self._codes(audit_bundle(bundle, self.repo_root))
-        )
-
-        intent = self._valid_intent()
-        intent["typographyException"] = {
-            "reason": "Four measured quantity levels carry distinct semantics.",
-            "evidence": ["docs/evidence.md#four-measured-levels"],
-        }
-        bundle = self._write_bundle(name="with-exception", intent=intent, svg=svg)
         self.assertEqual([], audit_bundle(bundle, self.repo_root))
 
-    def test_typography_exception_requires_reason_and_evidence(self) -> None:
-        intent = self._valid_intent()
-        intent["typographyException"] = {"reason": "", "evidence": []}
-        bundle = self._write_bundle(intent=intent)
-
-        codes = self._codes(audit_bundle(bundle, self.repo_root))
-
-        self.assertIn("typography-exception.reason", codes)
-        self.assertIn("element.evidence", codes)
-
-    def test_visible_svg_title_legend_and_prose_are_rejected(self) -> None:
+    def test_svg_text_is_not_classified_by_words_punctuation_or_class_names(self) -> None:
         svg = """<svg xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 704 400" style="width:100%"
             aria-labelledby="figure-title figure-desc">
@@ -2645,11 +2732,7 @@ class FigureAuditTests(unittest.TestCase):
         </svg>"""
         bundle = self._write_bundle(svg=svg)
 
-        codes = self._codes(audit_bundle(bundle, self.repo_root))
-
-        self.assertIn("svg.visible-title", codes)
-        self.assertIn("svg.long-legend", codes)
-        self.assertIn("svg.text-prose", codes)
+        self.assertEqual([], audit_bundle(bundle, self.repo_root))
 
     def test_svg_requires_title_desc_and_aria_labelledby(self) -> None:
         intent = self._valid_intent()
