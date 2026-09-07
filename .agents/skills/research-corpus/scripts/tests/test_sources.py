@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -270,6 +271,103 @@ class SourceTests(unittest.TestCase):
         with self.assertRaisesRegex(sources.CorpusError, "outside Git"):
             sources.cache_root(repository / "cache", self.corpus, create=True)
         self.assertFalse((repository / "cache").exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows short-path aliases are platform-specific")
+    def test_windows_short_path_alias_cannot_place_cache_inside_corpus(self):
+        import ctypes
+
+        get_short_path = ctypes.WinDLL("kernel32", use_last_error=True).GetShortPathNameW
+        get_short_path.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+        get_short_path.restype = ctypes.c_uint32
+
+        def short_path(path):
+            required = get_short_path(str(path), None, 0)
+            if not required:
+                self.skipTest("GetShortPathNameW is unavailable for this temporary directory")
+            output = ctypes.create_unicode_buffer(required)
+            actual = get_short_path(str(path), output, required)
+            if not actual or actual >= required:
+                self.fail("GetShortPathNameW could not return its advertised short path")
+            return Path(output.value)
+
+        corpus = self.root / "Canonical corpus with a long directory name"
+        corpus.mkdir()
+        canonical = corpus.resolve()
+        alias = short_path(canonical)
+        if str(alias).casefold() == str(canonical).casefold():
+            self.skipTest("8.3 aliases are not enabled for this temporary directory")
+        self.assertEqual(canonical, alias.resolve())
+        for candidate, corpus_argument in (
+            (alias / "cache", canonical),
+            (alias, canonical),
+            (canonical / "cache", alias),
+        ):
+            with self.subTest(candidate=candidate), self.assertRaisesRegex(sources.CorpusError, "outside the canonical corpus"):
+                sources.cache_root(candidate, corpus_argument, create=True)
+        self.assertFalse((canonical / "cache").exists())
+
+        external_alias = short_path(self.root.resolve()) / "External source cache"
+        external = sources.cache_root(external_alias, alias, create=True)
+        self.assertEqual((self.root / "External source cache").resolve(), external)
+        self.assertTrue((external / "cache.json").is_file())
+
+    @unittest.skipUnless(os.name == "nt", "Windows extended namespaces are platform-specific")
+    def test_windows_extended_namespace_preserves_corpus_and_home_boundaries(self):
+        def extended(path):
+            canonical = str(path.resolve())
+            prefix = "\\\\?\\"
+            if canonical.startswith(prefix):
+                return Path(canonical)
+            if canonical.startswith("\\\\"):
+                return Path(prefix + "UNC\\" + canonical[2:])
+            return Path(prefix + canonical)
+
+        corpus = self.corpus.resolve()
+        namespaced_corpus = extended(corpus)
+        self.assertTrue(namespaced_corpus.samefile(corpus))
+        for candidate, corpus_argument in (
+            (namespaced_corpus / "namespace-cache", corpus),
+            (corpus / "namespace-cache", namespaced_corpus),
+            (namespaced_corpus, corpus),
+        ):
+            with self.subTest(candidate=candidate), self.assertRaisesRegex(sources.CorpusError, "outside the canonical corpus"):
+                sources.cache_root(candidate, corpus_argument, create=True)
+        self.assertFalse((corpus / "namespace-cache").exists())
+
+        synthetic_home = self.root / "Synthetic home"
+        synthetic_home.mkdir()
+        sentinel = synthetic_home / "keep.txt"
+        sentinel.write_bytes(b"existing home data")
+        original_expanduser = Path.expanduser
+
+        def expanduser(path):
+            return synthetic_home if str(path) == "~" else original_expanduser(path)
+
+        with mock.patch.object(Path, "expanduser", autospec=True, side_effect=expanduser):
+            with self.assertRaisesRegex(sources.CorpusError, "not a filesystem or home root"):
+                sources.cache_root(extended(synthetic_home), corpus, create=True)
+        self.assertEqual(b"existing home data", sentinel.read_bytes())
+        self.assertEqual({"keep.txt"}, {path.name for path in synthetic_home.iterdir()})
+
+        external = sources.cache_root(extended(self.root) / "Namespace external cache", namespaced_corpus, create=True)
+        self.assertTrue(external.samefile(self.root / "Namespace external cache"))
+        self.assertTrue((external / "cache.json").is_file())
+
+    def test_cache_reparse_refusal_precedes_path_canonicalization(self):
+        candidate = self.root / "reparse-candidate"
+        candidate.mkdir()
+        original_lstat = Path.lstat
+
+        def metadata(path, *args, **kwargs):
+            if path == candidate:
+                return SimpleNamespace(st_mode=0o040755, st_nlink=1, st_file_attributes=0x400)
+            return original_lstat(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "lstat", autospec=True, side_effect=metadata), \
+                mock.patch.object(Path, "resolve", side_effect=AssertionError("resolved a path before rejecting its reparse ancestor")):
+            with self.assertRaisesRegex(sources.CorpusError, "reparse"):
+                sources.cache_root(candidate / "cache", self.corpus, create=True)
+        self.assertFalse((candidate / "cache").exists())
 
     def test_status_is_offline_and_does_not_create_a_cache(self):
         missing = self.root / "not-created"

@@ -108,12 +108,21 @@ def strict_json(payload: bytes) -> object:
         raise CorpusError(f"invalid cache JSON: {error}") from error
 
 
+def same_directory(first: Path, second: Path) -> bool:
+    # Even resolved Windows paths can retain different namespace prefixes.
+    return first == second or (
+        first.exists() and second.exists() and first.samefile(second)
+    )
+
+
 def cache_root(path: Path, corpus: Path, *, create: bool) -> Path:
-    root = checked_ancestors(path)
+    # Check the supplied path before resolving; then compare canonical names so
+    # Windows short-name aliases cannot bypass corpus or home containment.
+    root = checked_ancestors(path).resolve()
     corpus = corpus.resolve()
-    if root == Path(root.anchor) or root == Path("~").expanduser().resolve():
+    if root == Path(root.anchor) or same_directory(root, Path("~").expanduser().resolve()):
         raise CorpusError("choose a dedicated cache directory, not a filesystem or home root")
-    if root == corpus or corpus in root.parents:
+    if any(same_directory(ancestor, corpus) for ancestor in (root, *root.parents)):
         raise CorpusError("the source cache must be outside the canonical corpus")
     for ancestor in (root, *root.parents):
         if os.path.lexists(ancestor / ".git"):
