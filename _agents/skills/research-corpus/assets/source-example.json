@@ -1,0 +1,17 @@
+{
+  "schema": 2,
+  "id": "source-example",
+  "name": "Illustrative source identity",
+  "kind": "git-repository",
+  "url": "https://example.org/repositories/source-example.git",
+  "revision": {
+    "kind": "git-commit",
+    "value": "1111111111111111111111111111111111111111"
+  },
+  "tracking": {"kind": "git-ref", "ref": "refs/heads/main"},
+  "license": "NOASSERTION",
+  "access": "public",
+  "topics": ["software design"],
+  "notes": "Illustrative identity only. Replace the URL, commit, retrieval date, and rights information after inspecting an authorized source.",
+  "retrieved_at": "2026-01-01T00:00:00Z"
+}

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:research:record:v2",
+  "title": "Research record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "kind",
+    "status",
+    "title",
+    "question",
+    "summary",
+    "facets",
+    "sources",
+    "claims",
+    "relations",
+    "consumers",
+    "verified_at",
+    "revalidate_when"
+  ],
+  "properties": {
+    "schema": { "const": "research/v2" },
+    "id": {
+      "type": "string",
+      "pattern": "^(?:cr|rr)-[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{8}$"
+    },
+    "kind": { "enum": ["study", "comparison", "synthesis"] },
+    "status": { "enum": ["draft", "reviewed", "superseded", "retired"] },
+    "title": { "$ref": "#/$defs/nonempty" },
+    "question": { "$ref": "#/$defs/nonempty" },
+    "summary": { "$ref": "#/$defs/nonempty" },
+    "facets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domains", "mechanisms", "qualities", "platforms"],
+      "properties": {
+        "domains": { "$ref": "#/$defs/tokens" },
+        "mechanisms": { "$ref": "#/$defs/tokens" },
+        "qualities": { "$ref": "#/$defs/tokens" },
+        "platforms": { "$ref": "#/$defs/tokens" }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "claims": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/claim" }
+    },
+    "relations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supports", "contradicts", "refines", "supersedes", "superseded_by", "related"],
+      "properties": {
+        "supports": { "$ref": "#/$defs/record_ids" },
+        "contradicts": { "$ref": "#/$defs/record_ids" },
+        "refines": { "$ref": "#/$defs/record_ids" },
+        "supersedes": { "$ref": "#/$defs/record_ids" },
+        "superseded_by": { "$ref": "#/$defs/record_ids" },
+        "related": { "$ref": "#/$defs/record_ids" }
+      }
+    },
+    "consumers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    },
+    "verified_at": { "type": "string", "format": "date" },
+    "revalidate_when": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "token": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "tokens": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/token" }
+    },
+    "record_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^(?:cr|rr)-" }
+    },
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "enum": ["git-commit", "content-digest"] },
+        "value": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/token" },
+        "kind": {
+          "enum": ["source-tree", "document", "web", "dataset", "media", "artifact"]
+        },
+        "path": { "$ref": "#/$defs/nonempty" },
+        "symbol": { "$ref": "#/$defs/nonempty" },
+        "line_start": { "type": "integer" },
+        "line_end": { "type": "integer" },
+        "page": { "$ref": "#/$defs/nonempty" },
+        "section": { "$ref": "#/$defs/nonempty" },
+        "fragment": { "$ref": "#/$defs/nonempty" },
+        "selector": { "$ref": "#/$defs/nonempty" },
+        "quote_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "table": { "$ref": "#/$defs/nonempty" },
+        "row": { "$ref": "#/$defs/nonempty" },
+        "column": { "$ref": "#/$defs/nonempty" },
+        "query": { "$ref": "#/$defs/nonempty" },
+        "timecode": { "$ref": "#/$defs/nonempty" },
+        "member": { "$ref": "#/$defs/nonempty" },
+        "note": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "revision", "role", "locators"],
+      "properties": {
+        "id": { "$ref": "#/$defs/token" },
+        "revision": { "$ref": "#/$defs/revision" },
+        "role": { "enum": ["primary", "contrast", "counterexample", "context"] },
+        "locators": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/locator" }
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "statement", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/token" },
+        "type": { "enum": ["observation", "interpretation", "recommendation", "non-finding"] },
+        "statement": { "$ref": "#/$defs/nonempty" },
+        "evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9-]+:[a-z0-9-]+$" }
+        }
+      }
+    }
+  }
+}

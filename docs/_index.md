@@ -28,6 +28,8 @@ file extensions. This checked-in sample makes that opt-in for the single
 ## Choose your next task
 
 - [Build and preview the sample site](/guides/getting-started).
+- [Create a searchable research workspace](/guides/research-workspace).
+- [Author revision-pinned research records](/authoring/research-records).
 - [Define explicit navigation and durable links](/authoring/navigation).
 - [Use tabs, source snippets, figures, and Plans](/authoring/extensions).
 - [Limit which source files may be published](/authoring/source-publication).

@@ -3,6 +3,7 @@ nav:
   - navigation.md
   - extensions.md
   - source-publication.md
+  - research-records.md
 ---
 # Authoring guide
 
@@ -17,3 +18,5 @@ cannot express as clearly.
   safe figures, and intended behavior in Plans.
 - [Source publication](/authoring/source-publication) defines the opt-in boundary for
   snippet extraction and code browsing.
+- [Research records](/authoring/research-records) defines how to author located
+  claims, preserve historical revisions, and revalidate findings.

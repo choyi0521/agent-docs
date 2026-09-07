@@ -19,6 +19,9 @@ usually leave unchecked.
   separate from generated static output.
 - Vendor-neutral agent instructions and documentation-authoring skills that can
   be generated for supported coding agents.
+- A standalone research workflow: revision-pinned source catalogs, bounded
+  reference-code acquisition, evidence-backed Markdown records, and local
+  full-text/facet search with generated reading indexes.
 
 The repository contains only neutral toolkit documentation and examples. Do
 not add private product material, credentials, machine-specific paths, or
@@ -32,6 +35,10 @@ generated build output.
 
 The renderer itself does not require Node.js after the web assets have been
 built.
+
+The research skill works without .NET or Node.js. It needs Python 3.11+ with
+SQLite FTS5; Git is needed only to acquire reference code or check local Git
+citations.
 
 ## Quick start
 
@@ -185,6 +192,29 @@ python -B _agents/skills/technical-figure/scripts/audit_figures.py `
 Use `--write` on the synchronization command after changing a canonical
 instruction, skill, reference, script, or interface, then include every
 generated update in the same change.
+
+## Reusable research workflow
+
+The complete [`research-corpus`](_agents/skills/research-corpus/SKILL.md)
+package keeps research tools and instructions together. Its generated Codex
+and Claude packages live at `.agents/skills/research-corpus` and
+`.claude/skills/research-corpus`. They do not depend on this repository's
+renderer, generator, or root instructions.
+
+The [research workspace guide](docs/guides/research-workspace.md) walks
+through a separate consumer workspace: initialize a corpus, register an
+immutable source, acquire its code into a local cache, write a located claim,
+and validate/search the resulting record. The
+[record authoring contract](docs/authoring/research-records.md) explains
+evidence, review status, revalidation, and generated ownership.
+
+Search indexes authored records, source metadata, and evidence locators. It
+does **not** silently index every file in a downloaded repository. Inspect
+reference code with `rg`, then write findings backed by exact revisions and
+paths. Source downloads and SQLite indexes stay local; publication of notes
+or excerpts is a separate explicit choice.
+
+Reuse remains subject to the [license status](#license-status) below.
 
 ## Repository layout
 

@@ -1,9 +1,9 @@
 <!-- Generated from _agents/instructions/repository.md by tools/sync_agent_instructions.py. Do not edit this copy directly. -->
 # Repository instructions
 
-This repository publishes reusable agent guidance for authoring technical
-documentation and designing technical figures. Keep every change within that
-public, product-neutral scope.
+This repository publishes reusable tools and agent guidance for technical
+documentation, technical figures, and evidence-backed research. Keep every
+change within that public, product-neutral scope.
 
 ## Source of truth
 
@@ -29,3 +29,16 @@ Do not add application code, organization-specific terminology, credentials,
 private infrastructure, absolute user paths, or deployment instructions. A
 publication allowlist controls the rendered documentation view; it does not
 make any committed source private.
+
+## Research boundary
+
+Keep reusable research scripts, schemas, and synthetic examples in the
+`research-corpus` package. Do not import another project's catalog, findings,
+downloaded source trees, or indexes. Test acquisition and indexing in an
+isolated workspace outside this repository; the public-boundary check also
+inspects ignored files.
+
+Source manifests and authored records are canonical. Downloaded code and
+search indexes are local, reproducible data, never automatic publication
+inputs or product dependencies. Preserve immutable source revisions and
+distinguish observed evidence from interpretation and recommendations.

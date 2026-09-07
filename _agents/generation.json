@@ -45,6 +45,20 @@
           "vendor": "claude"
         }
       ]
+    },
+    {
+      "id": "research-corpus",
+      "source": "_agents/skills/research-corpus",
+      "targets": [
+        {
+          "path": ".agents/skills/research-corpus",
+          "vendor": "codex"
+        },
+        {
+          "path": ".claude/skills/research-corpus",
+          "vendor": "claude"
+        }
+      ]
     }
   ],
   "managed": {

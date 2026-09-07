@@ -1,0 +1,17 @@
+{
+  "schema": "research-taxonomy/v1",
+  "axes": {
+    "domains": {
+      "software-design": {"label": "Software design", "aliases": ["software", "소프트웨어"]}
+    },
+    "mechanisms": {
+      "ownership": {"label": "Ownership", "aliases": ["owner", "소유권"]}
+    },
+    "qualities": {
+      "safety": {"label": "Safety", "aliases": ["safe", "안전성"]}
+    },
+    "platforms": {
+      "native": {"label": "Native", "aliases": ["native code", "네이티브"]}
+    }
+  }
+}

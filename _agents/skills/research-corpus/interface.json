@@ -1,0 +1,5 @@
+{
+  "display_name": "Maintain Research Evidence",
+  "short_description": "Pin sources and write searchable research records",
+  "default_prompt": "Use $research-corpus to inspect existing evidence, maintain immutable source citations, and write or search a reusable research corpus with verified local tools."
+}

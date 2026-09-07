@@ -1,7 +1,7 @@
 # Canonical agent guidance
 
 This directory is the source of truth for the repository's agent instructions
-and reusable documentation skills. Agent discovery files at the repository
+and reusable documentation and research skills. Agent discovery files at the repository
 root and under vendor directories are deterministic generated copies.
 
 ## Layout
@@ -41,9 +41,15 @@ Edit only canonical files under `_agents/`. Never patch `AGENTS.md`,
 
 Everything committed to this repository is public, whether or not it appears
 in `publication.json`. Canonical packages must therefore contain only reusable
-documentation workflows and public examples. Do not add credentials, private
+documentation and research workflows and public examples. Do not add credentials, private
 keys, machine-specific user paths, private service addresses, confidential
 material, application source, deployment data, or generated caches.
+
+The `research-corpus` package is self-contained: its generated copy includes
+the record/index tools, bounded source acquisition, schemas, and workflow
+references. Consumer catalogs, research findings, downloaded source, and local
+indexes do not belong in this toolkit's packages. Installing the package does
+not opt those inputs into reader publication.
 
 The schemas at
 [`schemas/agent-generation.schema.json`](../schemas/agent-generation.schema.json)
